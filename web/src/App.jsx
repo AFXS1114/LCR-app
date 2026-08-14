@@ -289,7 +289,7 @@ function DeathForm({ serverUrl, token, onSuccess, onCancel }) {
 
 // ─── Main App ───────────────────────────────────────────────────────────────
 function App() {
-  const [serverUrl, setServerUrl] = useState('http://localhost:3000');
+  const [serverUrl, setServerUrl] = useState('https://lcr-search.vercel.app');
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin123');
   const [token, setToken] = useState('');
