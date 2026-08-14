@@ -289,7 +289,7 @@ function DeathForm({ serverUrl, token, onSuccess, onCancel }) {
 
 // ─── Main App ───────────────────────────────────────────────────────────────
 function App() {
-  const [serverUrl, setServerUrl] = useState('https://lcr-search.vercel.app');
+  const [serverUrl, setServerUrl] = useState('https://search-lcr.vercel.app');
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin123');
   const [token, setToken] = useState('');
@@ -441,17 +441,13 @@ function App() {
             Browse uploaded documents, filter by name or metadata, and inspect details instantly.
           </p>
         </div>
-        <div className="hero-pill">Connected to {serverUrl}</div>
+        <div className="hero-pill">LCR Records Portal</div>
       </header>
 
       {!token ? (
         <section className="card auth-card">
           <h2>Sign in to your server</h2>
           <form onSubmit={login} className="form-stack">
-            <label>
-              Server URL
-              <input value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} placeholder="http://localhost:3000" />
-            </label>
             <label>
               Username
               <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
