@@ -6,13 +6,22 @@
  * Listens on 0.0.0.0:3000 — accessible from all devices on the LAN.
  */
 
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
-const Database = require('better-sqlite3');
+
+let Database;
+if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
+  // Using Turso LibSQL client in local replica sync mode
+  const { expandLibsqlSync } = require('@libsql/client/sqlite3');
+  Database = expandLibsqlSync(require('better-sqlite3'));
+} else {
+  Database = require('better-sqlite3');
+}
 
 // ─────────────────────────────────────────────
 // Configuration
@@ -31,12 +40,22 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 }
 
 // ─────────────────────────────────────────────
-// Database Setup (SQLite)
+// Database Setup (SQLite + Turso sync if configured)
 // ─────────────────────────────────────────────
-const db = new Database(DB_PATH);
-
-// Enable WAL mode for better performance
-db.pragma('journal_mode = WAL');
+let db;
+if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
+  console.log('Connecting to database with Turso sync replication...');
+  db = new Database(DB_PATH, {
+    syncUrl: process.env.TURSO_DATABASE_URL,
+    syncAuth: process.env.TURSO_AUTH_TOKEN,
+    syncInterval: 3000 // sync changes with Turso cloud every 3 seconds
+  });
+} else {
+  console.log('Connecting to local SQLite database...');
+  db = new Database(DB_PATH);
+  // Enable WAL mode for better performance
+  db.pragma('journal_mode = WAL');
+}
 
 // Create tables
 db.exec(`
