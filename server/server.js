@@ -1,11 +1,3 @@
-/**
- * LCR App - Backend Server
- * ========================
- * Express + SQLite server for the LAN Records Management System.
- * Run with: node server.js
- * Listens on 0.0.0.0:3000 — accessible from all devices on the LAN, or deployed on Vercel.
- */
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -14,133 +6,183 @@ const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
 
-let Database;
-if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
-  // Using Turso LibSQL client in local replica sync mode
-  const { expandLibsqlSync } = require('@libsql/client/sqlite3');
-  Database = expandLibsqlSync(require('better-sqlite3'));
-} else {
-  Database = require('better-sqlite3');
-}
-
 // ─────────────────────────────────────────────
 // Configuration
 // ─────────────────────────────────────────────
 const PORT = 3000;
-const HOST = '0.0.0.0'; // Accept connections from all network interfaces
+const HOST = '0.0.0.0';
 const JWT_SECRET = 'lcr-app-secret-key-change-in-production';
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const DB_PATH = path.join(__dirname, 'lcr.db');
 
-// ─────────────────────────────────────────────
 // Ensure directories exist
-// ─────────────────────────────────────────────
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
 // ─────────────────────────────────────────────
-// Database Setup (SQLite + Turso sync if configured)
+// Database Driver Wrapper (Support serverless Turso / local SQLite)
 // ─────────────────────────────────────────────
-let db;
-if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
-  console.log('Connecting to database with Turso sync replication...');
-  db = new Database(DB_PATH, {
-    syncUrl: process.env.TURSO_DATABASE_URL,
-    syncAuth: process.env.TURSO_AUTH_TOKEN,
-    syncInterval: 3000 // sync changes with Turso cloud every 3 seconds
+const isTurso = !!(process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN);
+let dbClient;
+
+if (isTurso) {
+  console.log('Connecting to Turso Cloud DB (Serverless Client)...');
+  const { createClient } = require('@libsql/client');
+  dbClient = createClient({
+    url: process.env.TURSO_DATABASE_URL,
+    authToken: process.env.TURSO_AUTH_TOKEN,
   });
 } else {
-  console.log('Connecting to local SQLite database...');
-  db = new Database(DB_PATH);
-  // Enable WAL mode for better performance
-  db.pragma('journal_mode = WAL');
+  console.log('Connecting to local SQLite database (better-sqlite3)...');
+  const Database = require('better-sqlite3');
+  const localDb = new Database(DB_PATH);
+  localDb.pragma('journal_mode = WAL');
+
+  // Shim the Turso client API for local better-sqlite3
+  dbClient = {
+    async execute(queryObj) {
+      const sql = typeof queryObj === 'string' ? queryObj : queryObj.sql;
+      const args = typeof queryObj === 'string' ? [] : (queryObj.args || []);
+      
+      const stmt = localDb.prepare(sql);
+      
+      // Determine if query is reading (SELECT) or writing
+      const isSelect = sql.trim().toUpperCase().startsWith('SELECT');
+      
+      if (isSelect) {
+        const rows = stmt.all(...args);
+        return { rows };
+      } else {
+        const info = stmt.run(...args);
+        return {
+          lastInsertRowid: info.lastInsertRowid,
+          rowsAffected: info.changes
+        };
+      }
+    },
+    async executeMultiple(queries) {
+      const results = [];
+      const transaction = localDb.transaction((qs) => {
+        for (const q of qs) {
+          const sql = typeof q === 'string' ? q : q.sql;
+          const args = typeof q === 'string' ? [] : (q.args || []);
+          results.push(localDb.prepare(sql).run(...args));
+        }
+      });
+      transaction(queries);
+      return results;
+    }
+  };
 }
 
-// Create tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    role TEXT DEFAULT 'staff',
-    created_at TEXT DEFAULT (datetime('now'))
-  );
+// Initialize tables asynchronously
+async function initDb() {
+  try {
+    await dbClient.execute(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT DEFAULT 'staff',
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+    `);
 
-  CREATE TABLE IF NOT EXISTS records (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    serial_number TEXT,
-    page_number TEXT,
-    category TEXT,
-    description TEXT,
-    tags TEXT,
-    image_filename TEXT,
-    date TEXT DEFAULT (datetime('now')),
-    created_by INTEGER,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (created_by) REFERENCES users(id)
-  );
+    await dbClient.execute(`
+      CREATE TABLE IF NOT EXISTS records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        serial_number TEXT,
+        page_number TEXT,
+        category TEXT,
+        description TEXT,
+        tags TEXT,
+        image_filename TEXT,
+        date TEXT DEFAULT (datetime('now')),
+        created_by INTEGER,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      );
+    `);
 
-  CREATE TABLE IF NOT EXISTS birth_records (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    lcr_number TEXT,
-    date_of_registration TEXT,
-    name_of_child TEXT NOT NULL,
-    sex TEXT,
-    date_of_birth TEXT,
-    place_of_birth TEXT,
-    type_of_birth TEXT,
-    "order" TEXT,
-    mother_name TEXT,
-    mother_age TEXT,
-    mother_nationality TEXT,
-    mother_religion TEXT,
-    father_name TEXT,
-    father_age TEXT,
-    father_nationality TEXT,
-    father_religion TEXT,
-    municipality_province TEXT,
-    remarks TEXT,
-    created_by INTEGER,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (created_by) REFERENCES users(id)
-  );
+    await dbClient.execute(`
+      CREATE TABLE IF NOT EXISTS birth_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lcr_number TEXT,
+        date_of_registration TEXT,
+        name_of_child TEXT NOT NULL,
+        sex TEXT,
+        date_of_birth TEXT,
+        place_of_birth TEXT,
+        type_of_birth TEXT,
+        "order" TEXT,
+        mother_name TEXT,
+        mother_age TEXT,
+        mother_nationality TEXT,
+        mother_religion TEXT,
+        father_name TEXT,
+        father_age TEXT,
+        father_nationality TEXT,
+        father_religion TEXT,
+        municipality_province TEXT,
+        remarks TEXT,
+        created_by INTEGER,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      );
+    `);
 
-  CREATE TABLE IF NOT EXISTS death_records (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    lcr_number TEXT,
-    date_of_registration TEXT,
-    name_of_deceased TEXT NOT NULL,
-    sex TEXT,
-    date_of_death TEXT,
-    place_of_death TEXT,
-    cause_of_death TEXT,
-    age_at_death TEXT,
-    civil_status TEXT,
-    nationality TEXT,
-    religion TEXT,
-    occupation TEXT,
-    mother_name TEXT,
-    father_name TEXT,
-    informant_name TEXT,
-    informant_relationship TEXT,
-    remarks TEXT,
-    created_by INTEGER,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (created_by) REFERENCES users(id)
-  );
-`);
+    await dbClient.execute(`
+      CREATE TABLE IF NOT EXISTS death_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lcr_number TEXT,
+        date_of_registration TEXT,
+        name_of_deceased TEXT NOT NULL,
+        sex TEXT,
+        date_of_death TEXT,
+        place_of_death TEXT,
+        cause_of_death TEXT,
+        age_at_death TEXT,
+        civil_status TEXT,
+        nationality TEXT,
+        religion TEXT,
+        occupation TEXT,
+        mother_name TEXT,
+        father_name TEXT,
+        informant_name TEXT,
+        informant_relationship TEXT,
+        remarks TEXT,
+        created_by INTEGER,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      );
+    `);
 
-// Seed a default admin user if none exists
-const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
-if (!existingUser) {
-  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('admin', 'admin123', 'admin');
-  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('staff', 'staff123', 'staff');
-  console.log('✅ Default users created:');
-  console.log('   Username: admin   Password: admin123');
-  console.log('   Username: staff   Password: staff123');
+    // Seed default users if they don't exist
+    const userCheck = await dbClient.execute({
+      sql: 'SELECT id FROM users WHERE username = ?',
+      args: ['admin']
+    });
+
+    if (userCheck.rows.length === 0) {
+      await dbClient.execute({
+        sql: 'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
+        args: ['admin', 'admin123', 'admin']
+      });
+      await dbClient.execute({
+        sql: 'INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
+        args: ['staff', 'staff123', 'staff']
+      });
+      console.log('✅ Default users created.');
+    }
+  } catch (err) {
+    console.error('❌ Error during database schema initialization:', err);
+  }
 }
+
+// Kickoff DB initialization
+initDb();
 
 // ─────────────────────────────────────────────
 // File Upload (Multer)
@@ -193,9 +235,6 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-
-// Serve uploaded images as static files
-// Access via: http://172.16.11.220:3000/uploads/filename.jpg
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 // ─────────────────────────────────────────────
@@ -203,26 +242,35 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 // ─────────────────────────────────────────────
 
 // POST /api/auth/login
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
 
-  const user = db.prepare('SELECT * FROM users WHERE username = ? AND password = ?').get(username, password);
+  try {
+    const result = await dbClient.execute({
+      sql: 'SELECT * FROM users WHERE username = ? AND password = ?',
+      args: [username, password]
+    });
+    
+    const user = result.rows[0];
 
-  if (!user) {
-    return res.status(401).json({ error: 'Invalid username or password' });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    const token = jwt.sign(
+      { id: Number(user.id), username: user.username, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({ token, user: { id: Number(user.id), username: user.username, role: user.role } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  const token = jwt.sign(
-    { id: user.id, username: user.username, role: user.role },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-
-  res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
 });
 
 // ─────────────────────────────────────────────
@@ -230,27 +278,29 @@ app.post('/api/auth/login', (req, res) => {
 // ─────────────────────────────────────────────
 
 // GET /api/stats
-app.get('/api/stats', authenticate, (req, res) => {
-  const totalRecords = db.prepare('SELECT COUNT(*) as count FROM records').get().count;
-  const todayRecords = db.prepare(
-    "SELECT COUNT(*) as count FROM records WHERE date(created_at) = date('now')"
-  ).get().count;
-  const categories = db.prepare('SELECT COUNT(DISTINCT category) as count FROM records WHERE category IS NOT NULL AND category != ""').get().count;
+app.get('/api/stats', authenticate, async (req, res) => {
+  try {
+    const totalRecords = (await dbClient.execute('SELECT COUNT(*) as count FROM records')).rows[0].count;
+    const todayRecords = (await dbClient.execute("SELECT COUNT(*) as count FROM records WHERE date(created_at) = date('now')")).rows[0].count;
+    const categories = (await dbClient.execute('SELECT COUNT(DISTINCT category) as count FROM records WHERE category IS NOT NULL AND category != ""')).rows[0].count;
 
-  res.json({
-    totalRecords,
-    todayRecords,
-    totalCategories: categories,
-    syncStatus: 'Online',
-  });
+    res.json({
+      totalRecords: Number(totalRecords),
+      todayRecords: Number(todayRecords),
+      totalCategories: Number(categories),
+      syncStatus: 'Online',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─────────────────────────────────────────────
 // Routes: Records
 // ─────────────────────────────────────────────
 
-// GET /api/records?query=searchTerm&category=HR
-app.get('/api/records', authenticate, (req, res) => {
+// GET /api/records
+app.get('/api/records', authenticate, async (req, res) => {
   const { query = '', category = '', limit = 50, offset = 0 } = req.query;
 
   let sql = 'SELECT * FROM records WHERE 1=1';
@@ -270,42 +320,55 @@ app.get('/api/records', authenticate, (req, res) => {
   sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
   params.push(Number(limit), Number(offset));
 
-  const records = db.prepare(sql).all(...params);
+  try {
+    const result = await dbClient.execute({ sql, args: params });
+    const records = result.rows;
 
-  // Attach full image URL
-  const host = req.get('host');
-  const protocol = req.protocol;
-  const enriched = records.map(r => ({
-    ...r,
-    imageUrl: r.image_filename
-      ? `${protocol}://${host}/uploads/${r.image_filename}`
-      : null,
-  }));
+    const host = req.get('host');
+    const protocol = req.protocol;
+    const enriched = records.map(r => ({
+      ...r,
+      imageUrl: r.image_filename
+        ? `${protocol}://${host}/uploads/${r.image_filename}`
+        : null,
+    }));
 
-  res.json({ records: enriched, total: enriched.length });
+    res.json({ records: enriched, total: enriched.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/records/:id
-app.get('/api/records/:id', authenticate, (req, res) => {
-  const record = db.prepare('SELECT * FROM records WHERE id = ?').get(req.params.id);
+app.get('/api/records/:id', authenticate, async (req, res) => {
+  try {
+    const result = await dbClient.execute({
+      sql: 'SELECT * FROM records WHERE id = ?',
+      args: [req.params.id]
+    });
+    
+    const record = result.rows[0];
 
-  if (!record) {
-    return res.status(404).json({ error: 'Record not found' });
+    if (!record) {
+      return res.status(404).json({ error: 'Record not found' });
+    }
+
+    const host = req.get('host');
+    const protocol = req.protocol;
+
+    res.json({
+      ...record,
+      imageUrl: record.image_filename
+        ? `${protocol}://${host}/uploads/${record.image_filename}`
+        : null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  const host = req.get('host');
-  const protocol = req.protocol;
-
-  res.json({
-    ...record,
-    imageUrl: record.image_filename
-      ? `${protocol}://${host}/uploads/${record.image_filename}`
-      : null,
-  });
 });
 
-// POST /api/records  (multipart/form-data)
-app.post('/api/records', authenticate, upload.single('image'), (req, res) => {
+// POST /api/records
+app.post('/api/records', authenticate, upload.single('image'), async (req, res) => {
   const { name, serialNumber, pageNumber, category, description, tags, date } = req.body;
 
   if (!name) {
@@ -314,48 +377,32 @@ app.post('/api/records', authenticate, upload.single('image'), (req, res) => {
 
   const imageFilename = req.file ? req.file.filename : null;
 
-  const result = db.prepare(`
-    INSERT INTO records (name, serial_number, page_number, category, description, tags, image_filename, date, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    name,
-    serialNumber || null,
-    pageNumber || null,
-    category || null,
-    description || null,
-    tags || null,
-    imageFilename,
-    date || new Date().toISOString(),
-    req.user.id
-  );
+  try {
+    const result = await dbClient.execute({
+      sql: `INSERT INTO records (name, serial_number, page_number, category, description, tags, image_filename, date, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        name,
+        serialNumber || null,
+        pageNumber || null,
+        category || null,
+        description || null,
+        tags || null,
+        imageFilename,
+        date || null,
+        req.user.id
+      ]
+    });
 
-  const newRecord = db.prepare('SELECT * FROM records WHERE id = ?').get(result.lastInsertRowid);
-  const host = req.get('host');
+    const newRecord = (await dbClient.execute({
+      sql: 'SELECT * FROM records WHERE id = ?',
+      args: [Number(result.lastInsertRowid)]
+    })).rows[0];
 
-  res.status(201).json({
-    ...newRecord,
-    imageUrl: imageFilename ? `${req.protocol}://${host}/uploads/${imageFilename}` : null,
-  });
-});
-
-// DELETE /api/records/:id
-app.delete('/api/records/:id', authenticate, (req, res) => {
-  const record = db.prepare('SELECT * FROM records WHERE id = ?').get(req.params.id);
-
-  if (!record) {
-    return res.status(404).json({ error: 'Record not found' });
+    res.status(201).json(newRecord);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  // Delete the image file from disk
-  if (record.image_filename) {
-    const imagePath = path.join(UPLOADS_DIR, record.image_filename);
-    if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
-    }
-  }
-
-  db.prepare('DELETE FROM records WHERE id = ?').run(req.params.id);
-  res.json({ message: 'Record deleted successfully' });
 });
 
 // ─────────────────────────────────────────────
@@ -363,23 +410,30 @@ app.delete('/api/records/:id', authenticate, (req, res) => {
 // ─────────────────────────────────────────────
 
 // GET /api/birth-records
-app.get('/api/birth-records', authenticate, (req, res) => {
+app.get('/api/birth-records', authenticate, async (req, res) => {
   const { query = '', limit = 50, offset = 0 } = req.query;
   let sql = 'SELECT * FROM birth_records WHERE 1=1';
   const params = [];
+  
   if (query) {
     sql += ' AND (name_of_child LIKE ? OR lcr_number LIKE ? OR place_of_birth LIKE ?)';
     const q = `%${query}%`;
     params.push(q, q, q);
   }
+  
   sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
   params.push(Number(limit), Number(offset));
-  const rows = db.prepare(sql).all(...params);
-  res.json({ records: rows, total: rows.length });
+  
+  try {
+    const result = await dbClient.execute({ sql, args: params });
+    res.json({ records: result.rows, total: result.rows.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST /api/birth-records
-app.post('/api/birth-records', authenticate, (req, res) => {
+app.post('/api/birth-records', authenticate, async (req, res) => {
   const {
     lcr_number, date_of_registration, name_of_child, sex,
     date_of_birth, place_of_birth, type_of_birth, order: birthOrder,
@@ -392,22 +446,31 @@ app.post('/api/birth-records', authenticate, (req, res) => {
     return res.status(400).json({ error: 'Name of child is required' });
   }
 
-  const result = db.prepare(`
-    INSERT INTO birth_records
-      (lcr_number, date_of_registration, name_of_child, sex, date_of_birth, place_of_birth, type_of_birth, "order",
-       mother_name, mother_age, mother_nationality, mother_religion,
-       father_name, father_age, father_nationality, father_religion, municipality_province, remarks, created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-  `).run(
-    lcr_number || null, date_of_registration || null, name_of_child, sex || null,
-    date_of_birth || null, place_of_birth || null, type_of_birth || null, birthOrder || null,
-    mother_name || null, mother_age || null, mother_nationality || null, mother_religion || null,
-    father_name || null, father_age || null, father_nationality || null, father_religion || null,
-    municipality_province || null, remarks || null, req.user.id
-  );
+  try {
+    const result = await dbClient.execute({
+      sql: `INSERT INTO birth_records
+              (lcr_number, date_of_registration, name_of_child, sex, date_of_birth, place_of_birth, type_of_birth, "order",
+               mother_name, mother_age, mother_nationality, mother_religion,
+               father_name, father_age, father_nationality, father_religion, municipality_province, remarks, created_by)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      args: [
+        lcr_number || null, date_of_registration || null, name_of_child, sex || null,
+        date_of_birth || null, place_of_birth || null, type_of_birth || null, birthOrder || null,
+        mother_name || null, mother_age || null, mother_nationality || null, mother_religion || null,
+        father_name || null, father_age || null, father_nationality || null, father_religion || null,
+        municipality_province || null, remarks || null, req.user.id
+      ]
+    });
 
-  const newRecord = db.prepare('SELECT * FROM birth_records WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json(newRecord);
+    const newRecord = (await dbClient.execute({
+      sql: 'SELECT * FROM birth_records WHERE id = ?',
+      args: [Number(result.lastInsertRowid)]
+    })).rows[0];
+
+    res.status(201).json(newRecord);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─────────────────────────────────────────────
@@ -415,23 +478,30 @@ app.post('/api/birth-records', authenticate, (req, res) => {
 // ─────────────────────────────────────────────
 
 // GET /api/death-records
-app.get('/api/death-records', authenticate, (req, res) => {
+app.get('/api/death-records', authenticate, async (req, res) => {
   const { query = '', limit = 50, offset = 0 } = req.query;
   let sql = 'SELECT * FROM death_records WHERE 1=1';
   const params = [];
+  
   if (query) {
     sql += ' AND (name_of_deceased LIKE ? OR lcr_number LIKE ? OR place_of_death LIKE ?)';
     const q = `%${query}%`;
     params.push(q, q, q);
   }
+  
   sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
   params.push(Number(limit), Number(offset));
-  const rows = db.prepare(sql).all(...params);
-  res.json({ records: rows, total: rows.length });
+  
+  try {
+    const result = await dbClient.execute({ sql, args: params });
+    res.json({ records: result.rows, total: result.rows.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST /api/death-records
-app.post('/api/death-records', authenticate, (req, res) => {
+app.post('/api/death-records', authenticate, async (req, res) => {
   const {
     lcr_number, date_of_registration, name_of_deceased, sex,
     date_of_death, place_of_death, cause_of_death, age_at_death,
@@ -444,22 +514,31 @@ app.post('/api/death-records', authenticate, (req, res) => {
     return res.status(400).json({ error: 'Name of deceased is required' });
   }
 
-  const result = db.prepare(`
-    INSERT INTO death_records
-      (lcr_number, date_of_registration, name_of_deceased, sex, date_of_death, place_of_death,
-       cause_of_death, age_at_death, civil_status, nationality, religion, occupation,
-       mother_name, father_name, informant_name, informant_relationship, remarks, created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-  `).run(
-    lcr_number || null, date_of_registration || null, name_of_deceased, sex || null,
-    date_of_death || null, place_of_death || null, cause_of_death || null, age_at_death || null,
-    civil_status || null, nationality || null, religion || null, occupation || null,
-    mother_name || null, father_name || null,
-    informant_name || null, informant_relationship || null, remarks || null, req.user.id
-  );
+  try {
+    const result = await dbClient.execute({
+      sql: `INSERT INTO death_records
+              (lcr_number, date_of_registration, name_of_deceased, sex, date_of_death, place_of_death,
+               cause_of_death, age_at_death, civil_status, nationality, religion, occupation,
+               mother_name, father_name, informant_name, informant_relationship, remarks, created_by)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      args: [
+        lcr_number || null, date_of_registration || null, name_of_deceased, sex || null,
+        date_of_death || null, place_of_death || null, cause_of_death || null, age_at_death || null,
+        civil_status || null, nationality || null, religion || null, occupation || null,
+        mother_name || null, father_name || null,
+        informant_name || null, informant_relationship || null, remarks || null, req.user.id
+      ]
+    });
 
-  const newRecord = db.prepare('SELECT * FROM death_records WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json(newRecord);
+    const newRecord = (await dbClient.execute({
+      sql: 'SELECT * FROM death_records WHERE id = ?',
+      args: [Number(result.lastInsertRowid)]
+    })).rows[0];
+
+    res.status(201).json(newRecord);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─────────────────────────────────────────────
@@ -472,18 +551,17 @@ app.get('/', (req, res) => {
 // ─────────────────────────────────────────────
 // Start Server
 // ─────────────────────────────────────────────
-app.listen(PORT, HOST, () => {
-  console.log('');
-  console.log('╔══════════════════════════════════════════╗');
-  console.log('║     LCR Records Management Server        ║');
-  console.log('╚══════════════════════════════════════════╝');
-  console.log(`✅ Server running at http://${HOST}:${PORT}`);
-  console.log(`📱 Mobile app should connect to: http://172.16.11.220:${PORT}`);
-  console.log(`📁 Uploads saved to: ${UPLOADS_DIR}`);
-  console.log(`🗄️  Database: ${DB_PATH}`);
-  console.log('');
-  console.log('🔑 Default Accounts:');
-  console.log('   admin / admin123  (full access)');
-  console.log('   staff / staff123  (limited access)');
-  console.log('');
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, HOST, () => {
+    console.log('');
+    console.log('╔══════════════════════════════════════════╗');
+    console.log('║     LCR Records Management Server        ║');
+    console.log('╚══════════════════════════════════════════╝');
+    console.log(`✅ Server running at http://${HOST}:${PORT}`);
+    console.log(`📁 Uploads saved to: ${UPLOADS_DIR}`);
+    console.log(`🗄️  Database: ${DB_PATH}`);
+    console.log('');
+  });
+}
+
+module.exports = app;
