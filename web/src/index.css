@@ -1,22 +1,132 @@
+/* ─── Theme Tokens ──────────────────────────────────────────────────────────── */
 :root {
+  /* Dark theme (default) */
+  --bg-gradient: linear-gradient(135deg, #07111f 0%, #10233f 100%);
+  --card-bg: rgba(9, 20, 38, 0.86);
+  --card-border: rgba(255, 255, 255, 0.12);
+  --card-shadow: 0 20px 45px rgba(0, 0, 0, 0.25);
+
+  --text-primary: #f5f7fb;
+  --text-secondary: #9fb2c9;
+  --text-accent: #7dd3fc;
+  --text-muted: #dce7f6;
+
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --input-border: rgba(255, 255, 255, 0.1);
+  --input-color: #ffffff;
+
+  --btn-secondary-bg: rgba(255, 255, 255, 0.14);
+  --btn-secondary-color: #f5f7fb;
+
+  --record-item-bg: rgba(255, 255, 255, 0.05);
+  --record-item-active-bg: rgba(45, 212, 191, 0.14);
+  --record-item-active-border: #5eead4;
+
+  --tab-btn-bg: rgba(255, 255, 255, 0.05);
+  --tab-btn-border: rgba(255, 255, 255, 0.1);
+  --tab-btn-color: #9fb2c9;
+
+  --form-top-bar-bg: rgba(0, 0, 0, 0.15);
+  --form-top-bar-border: rgba(255, 255, 255, 0.08);
+  --form-section-border: rgba(255, 255, 255, 0.06);
+  --form-actions-bg: rgba(0, 0, 0, 0.1);
+
+  --image-modal-bg: rgba(2, 6, 23, 0.85);
+  --image-modal-card-bg: rgba(15, 23, 42, 0.95);
+  --image-modal-border: rgba(255, 255, 255, 0.16);
+  --image-modal-image-bg: #020617;
+
+  --detail-image-bg: #0f172a;
+  --detail-sub-border: rgba(255, 255, 255, 0.08);
+
+  --select-option-bg: #0f172a;
+
+  --empty-state-color: #9fb2c9;
+
+  --pill-bg: rgba(125, 211, 252, 0.16);
+  --pill-color: #7dd3fc;
+
+  --hero-pill-color: #7dd3fc;
+
+  --toggle-bg: rgba(255, 255, 255, 0.1);
+  --toggle-color: #dce7f6;
+  --toggle-border: rgba(255, 255, 255, 0.2);
+
   color-scheme: dark;
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #f5f7fb;
-  background: linear-gradient(135deg, #07111f 0%, #10233f 100%);
+  color: var(--text-primary);
+  background: var(--bg-gradient);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; background: inherit; }
-button, input { font: inherit; }
+/* ─── Light Theme ────────────────────────────────────────────────────────────── */
+:root.light {
+  --bg-gradient: linear-gradient(135deg, #eef3fb 0%, #dce8f9 100%);
+  --card-bg: rgba(255, 255, 255, 0.88);
+  --card-border: rgba(0, 0, 0, 0.08);
+  --card-shadow: 0 20px 45px rgba(0, 0, 0, 0.1);
 
+  --text-primary: #1a2840;
+  --text-secondary: #5a7299;
+  --text-accent: #1d6fa8;
+  --text-muted: #374a6b;
+
+  --input-bg: rgba(0, 0, 0, 0.04);
+  --input-border: rgba(0, 0, 0, 0.14);
+  --input-color: #1a2840;
+
+  --btn-secondary-bg: rgba(0, 0, 0, 0.08);
+  --btn-secondary-color: #1a2840;
+
+  --record-item-bg: rgba(0, 0, 0, 0.03);
+  --record-item-active-bg: rgba(20, 160, 140, 0.1);
+  --record-item-active-border: #14b8a6;
+
+  --tab-btn-bg: rgba(0, 0, 0, 0.04);
+  --tab-btn-border: rgba(0, 0, 0, 0.1);
+  --tab-btn-color: #5a7299;
+
+  --form-top-bar-bg: rgba(0, 0, 0, 0.04);
+  --form-top-bar-border: rgba(0, 0, 0, 0.08);
+  --form-section-border: rgba(0, 0, 0, 0.06);
+  --form-actions-bg: rgba(0, 0, 0, 0.04);
+
+  --image-modal-bg: rgba(220, 232, 249, 0.92);
+  --image-modal-card-bg: rgba(255, 255, 255, 0.98);
+  --image-modal-border: rgba(0, 0, 0, 0.1);
+  --image-modal-image-bg: #f0f5ff;
+
+  --detail-image-bg: #e8f0fb;
+  --detail-sub-border: rgba(0, 0, 0, 0.07);
+
+  --select-option-bg: #ffffff;
+
+  --empty-state-color: #5a7299;
+
+  --pill-bg: rgba(29, 111, 168, 0.12);
+  --pill-color: #1d6fa8;
+
+  --hero-pill-color: #1d6fa8;
+
+  --toggle-bg: rgba(0, 0, 0, 0.07);
+  --toggle-color: #374a6b;
+  --toggle-border: rgba(0, 0, 0, 0.14);
+
+  color-scheme: light;
+}
+
+/* ─── Reset & Base ─────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: var(--bg-gradient); transition: background 0.3s ease; }
+button, input { font: inherit; }
 #root { min-height: 100vh; }
 
+/* ─── App Shell ─────────────────────────────────────────────────────────────── */
 .app-shell {
   max-width: 1400px;
   margin: 0 auto;
@@ -25,11 +135,13 @@ button, input { font: inherit; }
   gap: 20px;
 }
 
+/* ─── Cards ─────────────────────────────────────────────────────────────────── */
 .hero-card, .card {
-  background: rgba(9, 20, 38, 0.86);
-  border: 1px solid rgba(255,255,255,0.12);
-  box-shadow: 0 20px 45px rgba(0,0,0,0.25);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
   backdrop-filter: blur(18px);
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .hero-card {
@@ -41,9 +153,10 @@ button, input { font: inherit; }
   gap: 16px;
 }
 
+/* ─── Hero ──────────────────────────────────────────────────────────────────── */
 .eyebrow {
   margin: 0 0 6px;
-  color: #7dd3fc;
+  color: var(--text-accent);
   text-transform: uppercase;
   letter-spacing: 0.24em;
   font-size: 0.76rem;
@@ -55,38 +168,81 @@ h1, h2, h3, p { margin: 0; }
 .hero-card h1 {
   font-size: clamp(1.5rem, 2.2vw, 2.3rem);
   margin-bottom: 8px;
+  color: var(--text-primary);
 }
 
 .hero-description {
-  color: #9fb2c9;
+  color: var(--text-secondary);
   max-width: 720px;
 }
 
+.hero-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
 .hero-pill {
-  background: rgba(125, 211, 252, 0.16);
-  color: #7dd3fc;
+  background: var(--pill-bg);
+  color: var(--pill-color);
   padding: 10px 14px;
   border-radius: 999px;
   white-space: nowrap;
   font-weight: 600;
 }
 
+/* ─── Theme Toggle Button ───────────────────────────────────────────────────── */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--toggle-bg);
+  color: var(--toggle-color);
+  border: 1.5px solid var(--toggle-border);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  white-space: nowrap;
+}
+.theme-toggle:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #3b82f6;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.2);
+}
+.theme-toggle-icon {
+  font-size: 1.1rem;
+  transition: transform 0.35s ease;
+}
+.theme-toggle:hover .theme-toggle-icon {
+  transform: rotate(20deg) scale(1.15);
+}
+
+/* ─── Card ──────────────────────────────────────────────────────────────────── */
 .card {
   border-radius: 20px;
   padding: 20px;
+  color: var(--text-primary);
 }
 
 .auth-card { max-width: 500px; }
 .form-stack { display: grid; gap: 12px; margin-top: 16px; }
-label { display: grid; gap: 8px; color: #dce7f6; font-weight: 600; }
+label { display: grid; gap: 8px; color: var(--text-muted); font-weight: 600; }
+
 input {
   width: 100%;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.06);
-  color: white;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--input-color);
   border-radius: 12px;
   padding: 12px 14px;
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
+
 button {
   border: none;
   border-radius: 12px;
@@ -95,15 +251,22 @@ button {
   padding: 12px 16px;
   cursor: pointer;
   font-weight: 700;
+  transition: opacity 0.15s ease;
 }
 button:disabled { opacity: 0.7; cursor: wait; }
-.secondary-btn { background: rgba(255,255,255,0.14); }
-.error-text { color: #fca5a5; margin: 8px 0 0; }
+
+.secondary-btn {
+  background: var(--btn-secondary-bg);
+  color: var(--btn-secondary-color);
+}
+
+.error-text { color: #f87171; margin: 8px 0 0; }
 .toolbar-card { display: grid; gap: 14px; }
 .toolbar-top, .card-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.card-header h3, .toolbar-top h3 { color: var(--text-primary); }
 .toolbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
-/* ─── Add Record Buttons ─── */
+/* ─── Add Record Buttons ─────────────────────────────────────────────────────── */
 .add-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
 .add-btn {
   border: 1.5px solid transparent;
@@ -116,31 +279,31 @@ button:disabled { opacity: 0.7; cursor: wait; }
   letter-spacing: 0.01em;
 }
 .birth-btn {
-  background: linear-gradient(135deg, rgba(52,211,153,0.18), rgba(16,185,129,0.12));
-  border-color: rgba(52,211,153,0.4);
-  color: #6ee7b7;
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.18), rgba(16, 185, 129, 0.12));
+  border-color: rgba(52, 211, 153, 0.4);
+  color: #10b981;
 }
 .birth-btn:hover, .birth-btn.active-add {
-  background: linear-gradient(135deg, rgba(52,211,153,0.35), rgba(16,185,129,0.28));
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.35), rgba(16, 185, 129, 0.28));
   border-color: #34d399;
-  box-shadow: 0 0 20px rgba(52,211,153,0.25);
+  box-shadow: 0 0 20px rgba(52, 211, 153, 0.25);
 }
 .death-btn {
-  background: linear-gradient(135deg, rgba(148,163,184,0.18), rgba(100,116,139,0.12));
-  border-color: rgba(148,163,184,0.4);
-  color: #cbd5e1;
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.18), rgba(100, 116, 139, 0.12));
+  border-color: rgba(148, 163, 184, 0.4);
+  color: #64748b;
 }
 .death-btn:hover, .death-btn.active-add {
-  background: linear-gradient(135deg, rgba(148,163,184,0.35), rgba(100,116,139,0.28));
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.35), rgba(100, 116, 139, 0.28));
   border-color: #94a3b8;
-  box-shadow: 0 0 20px rgba(148,163,184,0.2);
+  box-shadow: 0 0 20px rgba(148, 163, 184, 0.2);
 }
 
-/* ─── Success Toast ─── */
+/* ─── Success Toast ──────────────────────────────────────────────────────────── */
 .success-toast {
-  background: linear-gradient(135deg, rgba(52,211,153,0.22), rgba(16,185,129,0.15));
-  border: 1px solid rgba(52,211,153,0.5);
-  color: #6ee7b7;
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.22), rgba(16, 185, 129, 0.15));
+  border: 1px solid rgba(52, 211, 153, 0.5);
+  color: #10b981;
   border-radius: 14px;
   padding: 14px 20px;
   font-weight: 600;
@@ -152,7 +315,7 @@ button:disabled { opacity: 0.7; cursor: wait; }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ─── Record Form Card ─── */
+/* ─── Record Form Card ───────────────────────────────────────────────────────── */
 .form-card { padding: 0; overflow: hidden; }
 .record-form { display: grid; gap: 0; }
 
@@ -161,8 +324,8 @@ button:disabled { opacity: 0.7; cursor: wait; }
   justify-content: space-between;
   align-items: center;
   padding: 18px 24px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-  background: rgba(0,0,0,0.15);
+  border-bottom: 1px solid var(--form-top-bar-border);
+  background: var(--form-top-bar-bg);
 }
 .form-badge {
   font-size: 1rem;
@@ -172,27 +335,28 @@ button:disabled { opacity: 0.7; cursor: wait; }
   border-radius: 999px;
 }
 .birth-badge {
-  background: rgba(52,211,153,0.18);
-  color: #6ee7b7;
-  border: 1px solid rgba(52,211,153,0.4);
+  background: rgba(52, 211, 153, 0.18);
+  color: #10b981;
+  border: 1px solid rgba(52, 211, 153, 0.4);
 }
 .death-badge {
-  background: rgba(148,163,184,0.18);
-  color: #cbd5e1;
-  border: 1px solid rgba(148,163,184,0.4);
+  background: rgba(148, 163, 184, 0.18);
+  color: #64748b;
+  border: 1px solid rgba(148, 163, 184, 0.4);
 }
 .close-btn {
-  background: rgba(255,255,255,0.1);
+  background: var(--btn-secondary-bg);
   border-radius: 8px;
   padding: 6px 12px;
   font-size: 1rem;
   line-height: 1;
+  color: var(--btn-secondary-color);
 }
-.close-btn:hover { background: rgba(239,68,68,0.25); color: #fca5a5; }
+.close-btn:hover { background: rgba(239, 68, 68, 0.2); color: #f87171; }
 
-/* ─── Form Sections ─── */
+/* ─── Form Sections ──────────────────────────────────────────────────────────── */
 .form-section {
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid var(--form-section-border);
 }
 .section-header {
   padding: 12px 24px 8px;
@@ -205,25 +369,25 @@ button:disabled { opacity: 0.7; cursor: wait; }
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.2em;
-  color: #7dd3fc;
+  color: var(--text-accent);
 }
 .section-fields { padding: 4px 24px 16px; display: grid; gap: 12px; }
 .fields-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 
-/* ─── Form Fields ─── */
+/* ─── Form Fields ────────────────────────────────────────────────────────────── */
 .form-field { display: grid; gap: 6px; }
 .field-label {
   font-size: 0.78rem;
   font-weight: 700;
-  color: #9fb2c9;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
 .form-input {
   width: 100%;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.05);
-  color: white;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--input-color);
   border-radius: 10px;
   padding: 10px 12px;
   font: inherit;
@@ -231,40 +395,48 @@ button:disabled { opacity: 0.7; cursor: wait; }
 }
 .form-input:focus {
   outline: none;
-  border-color: rgba(125,211,252,0.5);
-  box-shadow: 0 0 0 3px rgba(125,211,252,0.1);
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
 }
-select.form-input option { background: #0f172a; color: white; }
+select.form-input option { background: var(--select-option-bg); color: var(--input-color); }
 .form-textarea { resize: vertical; min-height: 80px; }
 
-/* ─── Form Actions ─── */
+/* ─── Form Actions ───────────────────────────────────────────────────────────── */
 .form-actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
   padding: 16px 24px;
-  background: rgba(0,0,0,0.1);
+  background: var(--form-actions-bg);
 }
 .submit-btn {
   background: linear-gradient(135deg, #3b82f6, #2563eb);
   padding: 12px 24px;
   font-weight: 700;
+  color: white;
 }
+
+/* ─── Search & Content ───────────────────────────────────────────────────────── */
 .search-box { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
 .content-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 20px; }
 .record-list { display: grid; gap: 10px; margin-top: 14px; }
+
 .record-item {
   text-align: left;
-  background: rgba(255,255,255,0.05);
+  background: var(--record-item-bg);
   border: 1px solid transparent;
+  border-radius: 12px;
   padding: 12px 14px;
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  color: inherit;
+  color: var(--text-primary);
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
-.record-item p { color: #9fb2c9; font-size: 0.92rem; margin-top: 4px; }
-.record-item.active { border-color: #5eead4; background: rgba(45, 212, 191, 0.14); }
+.record-item p { color: var(--text-secondary); font-size: 0.92rem; margin-top: 4px; }
+.record-item.active { border-color: var(--record-item-active-border); background: var(--record-item-active-bg); }
+
+/* ─── Images ─────────────────────────────────────────────────────────────────── */
 .image-toolbar {
   display: flex;
   gap: 10px;
@@ -276,15 +448,16 @@ select.form-input option { background: #0f172a; color: white; }
   object-fit: cover;
   border-radius: 16px;
   margin: 8px 0 14px;
-  background: #0f172a;
+  background: var(--detail-image-bg);
   cursor: zoom-in;
   transition: transform 0.2s ease;
 }
-.detail-image.placeholder { display: flex; align-items: center; justify-content: center; color: #9fb2c9; }
+.detail-image.placeholder { display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
+
 .image-modal {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.85);
+  background: var(--image-modal-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -293,8 +466,8 @@ select.form-input option { background: #0f172a; color: white; }
 }
 .image-modal-card {
   width: min(100%, 960px);
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(255,255,255,0.16);
+  background: var(--image-modal-card-bg);
+  border: 1px solid var(--image-modal-border);
   border-radius: 20px;
   padding: 16px;
   display: grid;
@@ -310,25 +483,27 @@ select.form-input option { background: #0f172a; color: white; }
   max-height: 78vh;
   object-fit: contain;
   border-radius: 14px;
-  background: #020617;
+  background: var(--image-modal-image-bg);
   transition: transform 0.2s ease;
 }
-.detail-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
-.meta-label { color: #7dd3fc; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.16em; margin-bottom: 6px; font-weight: 700; }
-.detail-text { margin-top: 8px; color: #dce7f6; }
-.empty-state { color: #9fb2c9; padding: 24px 0; text-align: center; }
 
-/* ─── Records Tabs ─── */
+/* ─── Detail Meta ────────────────────────────────────────────────────────────── */
+.detail-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.meta-label { color: var(--text-accent); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.16em; margin-bottom: 6px; font-weight: 700; }
+.detail-text { margin-top: 8px; color: var(--text-muted); }
+.empty-state { color: var(--empty-state-color); padding: 24px 0; text-align: center; }
+
+/* ─── Records Tabs ───────────────────────────────────────────────────────────── */
 .records-tabs {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 .tab-btn {
-  border: 1.5px solid rgba(255,255,255,0.1);
+  border: 1.5px solid var(--tab-btn-border);
   border-radius: 12px;
-  background: rgba(255,255,255,0.05);
-  color: #9fb2c9;
+  background: var(--tab-btn-bg);
+  color: var(--tab-btn-color);
   padding: 10px 20px;
   font-weight: 600;
   font-size: 0.9rem;
@@ -337,18 +512,18 @@ select.form-input option { background: #0f172a; color: white; }
   letter-spacing: 0.01em;
 }
 .tab-btn:hover {
-  background: rgba(255,255,255,0.1);
-  border-color: rgba(255,255,255,0.25);
-  color: #f5f7fb;
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: var(--text-primary);
 }
 .tab-btn.active {
-  background: linear-gradient(135deg, rgba(59,130,246,0.3), rgba(37,99,235,0.2));
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(37, 99, 235, 0.18));
   border-color: #3b82f6;
-  color: #93c5fd;
-  box-shadow: 0 0 20px rgba(59,130,246,0.2);
+  color: #3b82f6;
+  box-shadow: 0 0 18px rgba(59, 130, 246, 0.2);
 }
 
-/* ─── Detail Sub-sections (birth/death detail views) ─── */
+/* ─── Detail Sub-sections ────────────────────────────────────────────────────── */
 .detail-custom-grid {
   display: grid;
   gap: 16px;
@@ -357,7 +532,7 @@ select.form-input option { background: #0f172a; color: white; }
   padding-right: 4px;
 }
 .detail-sub-section {
-  border-top: 1px solid rgba(255,255,255,0.08);
+  border-top: 1px solid var(--detail-sub-border);
   padding-top: 12px;
 }
 .detail-sub-section h4 {
@@ -365,18 +540,21 @@ select.form-input option { background: #0f172a; color: white; }
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.2em;
-  color: #7dd3fc;
+  color: var(--text-accent);
   margin: 0 0 10px;
 }
 
+/* ─── Responsive ─────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .content-grid { grid-template-columns: 1fr; }
   .records-tabs { gap: 6px; }
+  .hero-card { flex-wrap: wrap; }
 }
 
 @media (max-width: 640px) {
   .app-shell { padding: 16px; }
   .hero-card { flex-direction: column; align-items: flex-start; }
+  .hero-right { width: 100%; justify-content: flex-end; }
   .search-box { grid-template-columns: 1fr; }
   .detail-meta { grid-template-columns: 1fr; }
   .tab-btn { padding: 8px 14px; font-size: 0.82rem; }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 const STORAGE_KEYS = {
   server: 'lcr-web-server',
@@ -309,6 +309,27 @@ function App() {
   const [addMode, setAddMode] = useState('none');
   const [successMsg, setSuccessMsg] = useState('');
 
+  // ── Theme (dark / light) ──
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('lcr-theme');
+    if (saved) return saved;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.add('light');
+    } else {
+      root.classList.remove('light');
+    }
+    localStorage.setItem('lcr-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  }, []);
+
   useEffect(() => {
     const savedServer = localStorage.getItem(STORAGE_KEYS.server);
     const savedToken = localStorage.getItem(STORAGE_KEYS.token);
@@ -441,7 +462,19 @@ function App() {
             Browse uploaded documents, filter by name or metadata, and inspect details instantly.
           </p>
         </div>
-        <div className="hero-pill">LCR Records Portal</div>
+        <div className="hero-right">
+          <div className="hero-pill">LCR Records Portal</div>
+          <button
+            id="theme-toggle-btn"
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            <span className="theme-toggle-icon">{theme === 'dark' ? '☀️' : '🌙'}</span>
+            {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
+        </div>
       </header>
 
       {!token ? (
