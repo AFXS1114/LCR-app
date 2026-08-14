@@ -3,7 +3,7 @@
  * ========================
  * Express + SQLite server for the LAN Records Management System.
  * Run with: node server.js
- * Listens on 0.0.0.0:3000 — accessible from all devices on the LAN.
+ * Listens on 0.0.0.0:3000 — accessible from all devices on the LAN, or deployed on Vercel.
  */
 
 require('dotenv').config();
