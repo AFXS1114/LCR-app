@@ -302,6 +302,9 @@ function App() {
   const [zoomedImage, setZoomedImage] = useState(null);
   const [imageRotation, setImageRotation] = useState(0);
 
+  // 'general' | 'birth' | 'death'
+  const [currentTab, setCurrentTab] = useState('general');
+
   // 'none' | 'birth' | 'death'
   const [addMode, setAddMode] = useState('none');
   const [successMsg, setSuccessMsg] = useState('');
@@ -331,7 +334,7 @@ function App() {
       setToken(data.token);
       setUser(data.user);
       setSelectedRecord(null);
-      await fetchRecords(baseUrl, data.token, '');
+      await fetchRecords(baseUrl, data.token, '', 'general');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to connect to the server';
       setError(
@@ -344,21 +347,28 @@ function App() {
     }
   };
 
-  const fetchRecords = async (baseUrl, authToken, queryText = '') => {
+  const fetchRecords = async (baseUrl, authToken, queryText = '', tab = 'general') => {
     setIsLoading(true);
     setError('');
     try {
       const params = new URLSearchParams();
       if (queryText) params.set('query', queryText);
       params.set('limit', '50');
-      const response = await fetch(`${baseUrl}/api/records?${params.toString()}`, {
+
+      let endpoint = 'records';
+      if (tab === 'birth') endpoint = 'birth-records';
+      if (tab === 'death') endpoint = 'death-records';
+
+      const response = await fetch(`${baseUrl}/api/${endpoint}?${params.toString()}`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       const data = await readJsonResponse(response);
       if (!response.ok) throw new Error(data.error || `Unable to fetch records (${response.status})`);
-      setRecords(Array.isArray(data.records) ? data.records : []);
-      if (Array.isArray(data.records) && data.records.length > 0) {
-        setSelectedRecord(data.records[0]);
+      
+      const loaded = Array.isArray(data.records) ? data.records : [];
+      setRecords(loaded);
+      if (loaded.length > 0) {
+        setSelectedRecord(loaded[0]);
       } else {
         setSelectedRecord(null);
       }
@@ -374,11 +384,19 @@ function App() {
     }
   };
 
+  // Fetch when tab changes
+  useEffect(() => {
+    if (token) {
+      const baseUrl = serverUrl.trim().replace(/\/$/, '');
+      fetchRecords(baseUrl, token, search.trim(), currentTab);
+    }
+  }, [currentTab]);
+
   const handleSearch = async (event) => {
     event.preventDefault();
     if (!token) return;
     const baseUrl = serverUrl.trim().replace(/\/$/, '');
-    await fetchRecords(baseUrl, token, search.trim());
+    await fetchRecords(baseUrl, token, search.trim(), currentTab);
   };
 
   const logout = () => {
@@ -405,6 +423,9 @@ function App() {
   const handleFormSuccess = (msg) => {
     setSuccessMsg(msg);
     setAddMode('none');
+    // Refresh records
+    const baseUrl = serverUrl.trim().replace(/\/$/, '');
+    fetchRecords(baseUrl, token, search.trim(), currentTab);
     setTimeout(() => setSuccessMsg(''), 4000);
   };
 
@@ -477,7 +498,11 @@ function App() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, serial, category, or tag"
+                placeholder={
+                  currentTab === 'general' ? 'Search by name, serial, category, or tag' :
+                  currentTab === 'birth' ? 'Search child name, LCR number, or place of birth' :
+                  'Search deceased name, LCR number, or place of death'
+                }
               />
               <button type="submit" disabled={isLoading}>
                 {isLoading ? 'Searching…' : 'Search'}
@@ -513,10 +538,32 @@ function App() {
             </section>
           )}
 
+          {/* Records Search Tabs Switcher */}
+          <div className="records-tabs">
+            <button 
+              className={`tab-btn ${currentTab === 'general' ? 'active' : ''}`}
+              onClick={() => setCurrentTab('general')}
+            >
+              📁 General Uploads
+            </button>
+            <button 
+              className={`tab-btn ${currentTab === 'birth' ? 'active' : ''}`}
+              onClick={() => setCurrentTab('birth')}
+            >
+              🍼 Birth Registrations
+            </button>
+            <button 
+              className={`tab-btn ${currentTab === 'death' ? 'active' : ''}`}
+              onClick={() => setCurrentTab('death')}
+            >
+              🕊️ Death Registrations
+            </button>
+          </div>
+
           <section className="content-grid">
             <div className="card list-card">
               <div className="card-header">
-                <h3>Records</h3>
+                <h3>{currentTab === 'general' ? 'General Uploads' : currentTab === 'birth' ? 'Birth Registrations' : 'Death Registrations'}</h3>
                 <span>{records.length} found</span>
               </div>
 
@@ -533,10 +580,22 @@ function App() {
                       onClick={() => setSelectedRecord(record)}
                     >
                       <div>
-                        <strong>{record.name}</strong>
-                        <p>{record.category || 'Uncategorized'}</p>
+                        <strong>
+                          {currentTab === 'general' ? record.name :
+                           currentTab === 'birth' ? record.name_of_child :
+                           record.name_of_deceased}
+                        </strong>
+                        <p>
+                          {currentTab === 'general' ? (record.category || 'Uncategorized') :
+                           `LCR #: ${record.lcr_number || 'N/A'}`}
+                        </p>
                       </div>
-                      <span>{record.date ? new Date(record.date).toLocaleDateString() : '—'}</span>
+                      <span>
+                        {currentTab === 'general' && record.date ? new Date(record.date).toLocaleDateString() :
+                         currentTab === 'birth' && record.date_of_birth ? new Date(record.date_of_birth).toLocaleDateString() :
+                         currentTab === 'death' && record.date_of_death ? new Date(record.date_of_death).toLocaleDateString() :
+                         '—'}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -551,51 +610,205 @@ function App() {
                     <span>#{selectedRecord.id}</span>
                   </div>
 
-                  {selectedRecord.imageUrl ? (
+                  {currentTab === 'general' && (
                     <>
-                      <div className="image-toolbar">
-                        <button className="secondary-btn" type="button" onClick={() => openImagePreview(selectedRecord.imageUrl)}>
-                          Zoom image
-                        </button>
-                        <button className="secondary-btn" type="button" onClick={() => setImageRotation((prev) => (prev + 90) % 360)}>
-                          Rotate
-                        </button>
+                      {selectedRecord.imageUrl ? (
+                        <>
+                          <div className="image-toolbar">
+                            <button className="secondary-btn" type="button" onClick={() => openImagePreview(selectedRecord.imageUrl)}>
+                              Zoom image
+                            </button>
+                            <button className="secondary-btn" type="button" onClick={() => setImageRotation((prev) => (prev + 90) % 360)}>
+                              Rotate
+                            </button>
+                          </div>
+                          <img
+                            src={selectedRecord.imageUrl}
+                            alt={selectedRecord.name}
+                            className="detail-image"
+                            onClick={() => openImagePreview(selectedRecord.imageUrl)}
+                            style={{ transform: `rotate(${imageRotation}deg)` }}
+                          />
+                        </>
+                      ) : (
+                        <div className="detail-image placeholder">No image attached</div>
+                      )}
+
+                      <div className="detail-meta">
+                        <div>
+                          <p className="meta-label">Name</p>
+                          <p>{selectedRecord.name}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Serial</p>
+                          <p>{selectedRecord.serial_number || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Category</p>
+                          <p>{selectedRecord.category || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Date</p>
+                          <p>{selectedRecord.date ? new Date(selectedRecord.date).toLocaleDateString() : '—'}</p>
+                        </div>
                       </div>
-                      <img
-                        src={selectedRecord.imageUrl}
-                        alt={selectedRecord.name}
-                        className="detail-image"
-                        onClick={() => openImagePreview(selectedRecord.imageUrl)}
-                        style={{ transform: `rotate(${imageRotation}deg)` }}
-                      />
+
+                      <div className="detail-text">
+                        <p className="meta-label">Description</p>
+                        <p>{selectedRecord.description || 'No description provided.'}</p>
+                      </div>
                     </>
-                  ) : (
-                    <div className="detail-image placeholder">No image attached</div>
                   )}
 
-                  <div className="detail-meta">
-                    <div>
-                      <p className="meta-label">Name</p>
-                      <p>{selectedRecord.name}</p>
-                    </div>
-                    <div>
-                      <p className="meta-label">Serial</p>
-                      <p>{selectedRecord.serial_number || '—'}</p>
-                    </div>
-                    <div>
-                      <p className="meta-label">Category</p>
-                      <p>{selectedRecord.category || '—'}</p>
-                    </div>
-                    <div>
-                      <p className="meta-label">Date</p>
-                      <p>{selectedRecord.date ? new Date(selectedRecord.date).toLocaleDateString() : '—'}</p>
-                    </div>
-                  </div>
+                  {currentTab === 'birth' && (
+                    <div className="detail-custom-grid">
+                      <div className="detail-meta">
+                        <div>
+                          <p className="meta-label">Child Name</p>
+                          <p>{selectedRecord.name_of_child}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Sex</p>
+                          <p>{selectedRecord.sex || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">LCR Number</p>
+                          <p>{selectedRecord.lcr_number || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Registration Date</p>
+                          <p>{selectedRecord.date_of_registration ? new Date(selectedRecord.date_of_registration).toLocaleDateString() : '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Date of Birth</p>
+                          <p>{selectedRecord.date_of_birth ? new Date(selectedRecord.date_of_birth).toLocaleDateString() : '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Place of Birth</p>
+                          <p>{selectedRecord.place_of_birth || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Type of Birth</p>
+                          <p>{selectedRecord.type_of_birth || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Order of Birth</p>
+                          <p>{selectedRecord.order || '—'}</p>
+                        </div>
+                      </div>
 
-                  <div className="detail-text">
-                    <p className="meta-label">Description</p>
-                    <p>{selectedRecord.description || 'No description provided.'}</p>
-                  </div>
+                      <div className="detail-sub-section">
+                        <h4>Parents Info</h4>
+                        <div className="detail-meta">
+                          <div>
+                            <p className="meta-label">Mother Name</p>
+                            <p>{selectedRecord.mother_name || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="meta-label">Mother Nationality/Age</p>
+                            <p>{selectedRecord.mother_nationality || '—'} {selectedRecord.mother_age ? `(${selectedRecord.mother_age} yrs)` : ''}</p>
+                          </div>
+                          <div>
+                            <p className="meta-label">Father Name</p>
+                            <p>{selectedRecord.father_name || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="meta-label">Father Nationality/Age</p>
+                            <p>{selectedRecord.father_nationality || '—'} {selectedRecord.father_age ? `(${selectedRecord.father_age} yrs)` : ''}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="detail-sub-section">
+                        <h4>Location Details</h4>
+                        <div className="detail-meta">
+                          <div>
+                            <p className="meta-label">Municipality / Province</p>
+                            <p>{selectedRecord.municipality_province || '—'}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="detail-text">
+                        <p className="meta-label">Remarks</p>
+                        <p>{selectedRecord.remarks || 'No remarks.'}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {currentTab === 'death' && (
+                    <div className="detail-custom-grid">
+                      <div className="detail-meta">
+                        <div>
+                          <p className="meta-label">Deceased Name</p>
+                          <p>{selectedRecord.name_of_deceased}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Sex</p>
+                          <p>{selectedRecord.sex || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Age at Death</p>
+                          <p>{selectedRecord.age_at_death || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">LCR Number</p>
+                          <p>{selectedRecord.lcr_number || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Registration Date</p>
+                          <p>{selectedRecord.date_of_registration ? new Date(selectedRecord.date_of_registration).toLocaleDateString() : '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Date of Death</p>
+                          <p>{selectedRecord.date_of_death ? new Date(selectedRecord.date_of_death).toLocaleDateString() : '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Place of Death</p>
+                          <p>{selectedRecord.place_of_death || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Cause of Death</p>
+                          <p>{selectedRecord.cause_of_death || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Civil Status</p>
+                          <p>{selectedRecord.civil_status || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="meta-label">Nationality</p>
+                          <p>{selectedRecord.nationality || '—'}</p>
+                        </div>
+                      </div>
+
+                      <div className="detail-sub-section">
+                        <h4>Family & Informant</h4>
+                        <div className="detail-meta">
+                          <div>
+                            <p className="meta-label">Mother Name</p>
+                            <p>{selectedRecord.mother_name || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="meta-label">Father Name</p>
+                            <p>{selectedRecord.father_name || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="meta-label">Informant</p>
+                            <p>{selectedRecord.informant_name || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="meta-label">Informant Relationship</p>
+                            <p>{selectedRecord.informant_relationship || '—'}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="detail-text">
+                        <p className="meta-label">Remarks</p>
+                        <p>{selectedRecord.remarks || 'No remarks.'}</p>
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="empty-state">Select a record to view the full details.</div>

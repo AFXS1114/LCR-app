@@ -318,8 +318,60 @@ select.form-input option { background: #0f172a; color: white; }
 .detail-text { margin-top: 8px; color: #dce7f6; }
 .empty-state { color: #9fb2c9; padding: 24px 0; text-align: center; }
 
+/* ─── Records Tabs ─── */
+.records-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tab-btn {
+  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.05);
+  color: #9fb2c9;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  letter-spacing: 0.01em;
+}
+.tab-btn:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.25);
+  color: #f5f7fb;
+}
+.tab-btn.active {
+  background: linear-gradient(135deg, rgba(59,130,246,0.3), rgba(37,99,235,0.2));
+  border-color: #3b82f6;
+  color: #93c5fd;
+  box-shadow: 0 0 20px rgba(59,130,246,0.2);
+}
+
+/* ─── Detail Sub-sections (birth/death detail views) ─── */
+.detail-custom-grid {
+  display: grid;
+  gap: 16px;
+  overflow-y: auto;
+  max-height: calc(100vh - 260px);
+  padding-right: 4px;
+}
+.detail-sub-section {
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 12px;
+}
+.detail-sub-section h4 {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #7dd3fc;
+  margin: 0 0 10px;
+}
+
 @media (max-width: 900px) {
   .content-grid { grid-template-columns: 1fr; }
+  .records-tabs { gap: 6px; }
 }
 
 @media (max-width: 640px) {
@@ -327,4 +379,5 @@ select.form-input option { background: #0f172a; color: white; }
   .hero-card { flex-direction: column; align-items: flex-start; }
   .search-box { grid-template-columns: 1fr; }
   .detail-meta { grid-template-columns: 1fr; }
+  .tab-btn { padding: 8px 14px; font-size: 0.82rem; }
 }
