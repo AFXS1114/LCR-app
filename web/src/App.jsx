@@ -1025,6 +1025,13 @@ function Generate1AModal({ serverUrl, token, record, employees, mcr, mcrDesignat
 
 // ─── Main Application Component ───────────────────────────────────────────────
 export default function App() {
+  // ─── Base Auth & Endpoint States ─────────────────────────────────────────────
+  const [serverUrl, setServerUrl] = useState('https://search-lcr.vercel.app');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [token, setToken] = useState('');
+  const [user, setUser] = useState(null);
+
   // ─── Settings: Employees, MCR & Office Info ─────────────────────────────────
   const [employees, setEmployees] = useState(() => {
     try { return JSON.parse(localStorage.getItem('lcr-employees') || '[]'); } catch { return []; }
@@ -1148,13 +1155,8 @@ export default function App() {
   // ─── Form 1A Modal State ─────────────────────────────────────────────────────
   const [show1AModal, setShow1AModal] = useState(false);
   const [form1ARecord, setForm1ARecord] = useState(null);
-  const [serverUrl, setServerUrl] = useState('https://search-lcr.vercel.app');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [token, setToken] = useState('');
-  const [user, setUser] = useState(null);
 
-  // Active View: 'search' | 'settings'
+  // Active View: 'search' | 'issuance' | 'settings'
   const [activePage, setActivePage] = useState('search');
 
   // Passcode Security States
