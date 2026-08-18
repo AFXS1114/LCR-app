@@ -1,45 +1,49 @@
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Switch, Alert } from 'react-native';
-import { useTheme } from '@/hooks/use-theme';
 import { ThemedText } from '@/components/themed-text';
-import { TextInput } from '@/components/ui/TextInput';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { storage } from '@/services/storage';
+import { TextInput } from '@/components/ui/TextInput';
 import { useAuth } from '@/features/auth/AuthContext';
-import { useColorScheme } from 'react-native';
+import { useTheme } from '@/hooks/use-theme';
+import { DEFAULT_SERVER_URL, storage } from '@/services/storage';
+import { useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Switch, useColorScheme, View } from 'react-native';
 
 export default function SettingsScreen() {
   const theme = useTheme();
   const colorScheme = useColorScheme();
   const { logout } = useAuth();
   
-  const [ip, setIp] = useState('');
-  const [port, setPort] = useState('');
+  const [serverUrl, setServerUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    storage.getServerConfig().then(config => {
-      if (config.ip) setIp(config.ip);
-      if (config.port) setPort(config.port);
+    storage.getServerUrl().then(url => {
+      setServerUrl(url);
     });
   }, []);
 
   const handleSave = async () => {
-    if (!ip || !port) {
-      Alert.alert('Error', 'Please enter both IP address and port.');
+    const normalizedUrl = serverUrl.trim();
+    if (!normalizedUrl) {
+      Alert.alert('Error', 'Please enter a valid server URL.');
       return;
     }
-    
+
     setIsSaving(true);
     try {
-      await storage.setServerConfig(ip, port);
-      Alert.alert('Success', 'Server configuration saved.');
+      await storage.setServerUrl(normalizedUrl);
+      Alert.alert('Success', 'Server URL saved successfully.');
     } catch (e) {
       Alert.alert('Error', 'Failed to save configuration.');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleReset = async () => {
+    await storage.clearServerUrl();
+    setServerUrl(DEFAULT_SERVER_URL);
+    Alert.alert('Reset', 'Reset to default Vercel server URL.');
   };
 
   const handleLogout = () => {
@@ -53,29 +57,29 @@ export default function SettingsScreen() {
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
       <Card style={styles.card}>
         <ThemedText type="title" style={styles.sectionTitle}>Server Configuration</ThemedText>
-        
+
         <TextInput
-          label="Server IP (e.g., 192.168.1.10)"
-          placeholder="192.168.1.10"
-          value={ip}
-          onChangeText={setIp}
-          keyboardType="numeric"
+          label="Server URL"
+          placeholder="https://search-lcr.vercel.app"
+          value={serverUrl}
+          onChangeText={setServerUrl}
+          autoCapitalize="none"
         />
-        
-        <TextInput
-          label="Server Port"
-          placeholder="3000"
-          value={port}
-          onChangeText={setPort}
-          keyboardType="numeric"
-        />
-        
-        <Button 
-          title="Save Configuration" 
-          onPress={handleSave} 
-          isLoading={isSaving}
-          style={styles.saveButton}
-        />
+
+        <View style={styles.buttonGroup}>
+          <Button 
+            title="Save URL" 
+            onPress={handleSave} 
+            isLoading={isSaving}
+            style={styles.flexButton}
+          />
+          <Button 
+            title="Reset Default" 
+            variant="secondary"
+            onPress={handleReset} 
+            style={styles.flexButton}
+          />
+        </View>
       </Card>
 
       <Card style={styles.card}>
@@ -84,7 +88,7 @@ export default function SettingsScreen() {
           <ThemedText>Dark Mode</ThemedText>
           <Switch 
             value={colorScheme === 'dark'} 
-            disabled // The expo color scheme hook reflects system state. Custom override needs extra context, but for now we rely on system
+            disabled
           />
         </View>
         <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 8 }}>
@@ -115,8 +119,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     marginBottom: 16,
   },
-  saveButton: {
+  buttonGroup: {
+    flexDirection: 'row',
+    gap: 10,
     marginTop: 8,
+  },
+  flexButton: {
+    flex: 1,
   },
   row: {
     flexDirection: 'row',

@@ -280,16 +280,63 @@ app.post('/api/auth/login', async (req, res) => {
 // GET /api/stats
 app.get('/api/stats', authenticate, async (req, res) => {
   try {
-    const totalRecords = (await dbClient.execute('SELECT COUNT(*) as count FROM records')).rows[0].count;
-    const todayRecords = (await dbClient.execute("SELECT COUNT(*) as count FROM records WHERE date(created_at) = date('now')")).rows[0].count;
+    // Count across all record types
+    const scannedCount   = (await dbClient.execute('SELECT COUNT(*) as count FROM records')).rows[0].count;
+    const birthCount     = (await dbClient.execute('SELECT COUNT(*) as count FROM birth_records')).rows[0].count;
+    const deathCount     = (await dbClient.execute('SELECT COUNT(*) as count FROM death_records')).rows[0].count;
+    const totalRecords   = Number(scannedCount) + Number(birthCount) + Number(deathCount);
+
+    const scannedToday   = (await dbClient.execute("SELECT COUNT(*) as count FROM records WHERE date(created_at) = date('now')")).rows[0].count;
+    const birthToday     = (await dbClient.execute("SELECT COUNT(*) as count FROM birth_records WHERE date(created_at) = date('now')")).rows[0].count;
+    const deathToday     = (await dbClient.execute("SELECT COUNT(*) as count FROM death_records WHERE date(created_at) = date('now')")).rows[0].count;
+    const todayRecords   = Number(scannedToday) + Number(birthToday) + Number(deathToday);
+
     const categories = (await dbClient.execute('SELECT COUNT(DISTINCT category) as count FROM records WHERE category IS NOT NULL AND category != ""')).rows[0].count;
 
     res.json({
-      totalRecords: Number(totalRecords),
-      todayRecords: Number(todayRecords),
+      totalRecords,
+      scannedRecords: Number(scannedCount),
+      birthRecords:   Number(birthCount),
+      deathRecords:   Number(deathCount),
+      todayRecords,
       totalCategories: Number(categories),
       syncStatus: 'Online',
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// Routes: Unified Search
+// ─────────────────────────────────────────────
+
+// GET /api/search?query=&limit=
+app.get('/api/search', authenticate, async (req, res) => {
+  const { query = '', limit = 100 } = req.query;
+  const q = `%${query}%`;
+
+  try {
+    const birthSql = query
+      ? { sql: `SELECT *, 'birth' as record_type FROM birth_records WHERE name_of_child LIKE ? OR lcr_number LIKE ? ORDER BY created_at DESC LIMIT ?`, args: [q, q, Number(limit)] }
+      : { sql: `SELECT *, 'birth' as record_type FROM birth_records ORDER BY created_at DESC LIMIT ?`, args: [Number(limit)] };
+
+    const deathSql = query
+      ? { sql: `SELECT *, 'death' as record_type FROM death_records WHERE name_of_deceased LIKE ? OR lcr_number LIKE ? ORDER BY created_at DESC LIMIT ?`, args: [q, q, Number(limit)] }
+      : { sql: `SELECT *, 'death' as record_type FROM death_records ORDER BY created_at DESC LIMIT ?`, args: [Number(limit)] };
+
+    const [birthResult, deathResult] = await Promise.all([
+      dbClient.execute(birthSql),
+      dbClient.execute(deathSql),
+    ]);
+
+    const merged = [...birthResult.rows, ...deathResult.rows].sort((a, b) => {
+      const ta = a.created_at ? new Date(String(a.created_at)).getTime() : 0;
+      const tb = b.created_at ? new Date(String(b.created_at)).getTime() : 0;
+      return tb - ta;
+    });
+
+    res.json({ records: merged, total: merged.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

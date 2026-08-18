@@ -1,19 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuth } from '@/features/auth/AuthContext';
 import { ThemedText } from '@/components/themed-text';
-import { TextInput } from '@/components/ui/TextInput';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { TextInput } from '@/components/ui/TextInput';
+import { useAuth } from '@/features/auth/AuthContext';
 import { useTheme } from '@/hooks/use-theme';
 import { storage } from '@/services/storage';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [serverIp, setServerIp] = useState('');
   const [serverPort, setServerPort] = useState('3000');
+  const [serverUrl, setServerUrl] = useState('');
   const [showServerConfig, setShowServerConfig] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -23,11 +24,8 @@ export default function LoginScreen() {
 
   // Load existing server config on mount
   useEffect(() => {
-    storage.getServerConfig().then(({ ip, port }) => {
-      if (ip) setServerIp(ip);
-      if (port) setServerPort(port);
-      // Auto-show server config section if IP is not configured yet
-      if (!ip) setShowServerConfig(true);
+    storage.getServerUrl().then((url) => {
+      if (url) setServerUrl(url);
     });
   }, []);
 
@@ -41,20 +39,19 @@ export default function LoginScreen() {
     setError('');
 
     try {
-      // Save server config first
-      if (serverIp) {
-        await storage.setServerConfig(serverIp.trim(), serverPort.trim() || '3000');
+      const normalizedUrl = serverUrl.trim();
+      if (normalizedUrl) {
+        await storage.setServerUrl(normalizedUrl);
       }
 
-      const serverConfig = await storage.getServerConfig();
-      if (!serverConfig.ip) {
-        setError('Server IP not configured. Tap "Server Settings" below to set it.');
+      const currentServerUrl = await storage.getServerUrl();
+      if (!currentServerUrl) {
+        setError('Server URL not configured. Tap "Server Settings" below to set it.');
         setShowServerConfig(true);
         setIsLoading(false);
         return;
       }
 
-      // Real login — calls POST /api/auth/login on your LAN server
       const { api } = await import('@/services/api');
       const response = await api.post('/api/auth/login', { username, password });
       const { token } = response.data;
@@ -119,6 +116,13 @@ export default function LoginScreen() {
           <Card style={styles.serverCard}>
             <ThemedText type="default" style={styles.serverTitle}>LAN Server Configuration</ThemedText>
             <TextInput
+              label="Server URL (recommended for hosted backend)"
+              placeholder="https://your-api.example.com"
+              value={serverUrl}
+              onChangeText={setServerUrl}
+              autoCapitalize="none"
+            />
+            <TextInput
               label="Server IP Address"
               placeholder="e.g. 192.168.1.10"
               value={serverIp}
@@ -134,8 +138,7 @@ export default function LoginScreen() {
               keyboardType="numeric"
             />
             <ThemedText style={styles.serverHint}>
-              These settings are saved on your device. Find your server IP using{' '}
-              <ThemedText style={{ fontWeight: '700' }}>ipconfig</ThemedText> on the server PC.
+              Use your deployed API URL when available, or your LAN IP + port for local testing.
             </ThemedText>
           </Card>
         )}

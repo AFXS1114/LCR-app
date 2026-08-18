@@ -1,28 +1,39 @@
 import * as SecureStore from 'expo-secure-store';
 
-const SERVER_IP_KEY = 'SERVER_IP';
-const SERVER_PORT_KEY = 'SERVER_PORT';
+// ─── Default server URL (mirrors web app config) ────────────────────────────
+// The web app (web/src/App.jsx) hardcodes this as its default server URL.
+// The mobile app follows the same pattern.
+export const DEFAULT_SERVER_URL = 'https://search-lcr.vercel.app';
+
+const SERVER_URL_KEY = 'SERVER_URL';
 const AUTH_TOKEN_KEY = 'AUTH_TOKEN';
 
 export const storage = {
-  // Server Configuration
-  async setServerConfig(ip: string, port: string) {
-    await SecureStore.setItemAsync(SERVER_IP_KEY, ip);
-    await SecureStore.setItemAsync(SERVER_PORT_KEY, port);
+  // ── Server URL ──────────────────────────────────────────────────────────────
+  async setServerUrl(url: string) {
+    const normalized = url.trim().replace(/\/$/, '');
+    if (!normalized) {
+      await SecureStore.deleteItemAsync(SERVER_URL_KEY);
+      return;
+    }
+    await SecureStore.setItemAsync(SERVER_URL_KEY, normalized);
   },
 
-  async getServerConfig() {
-    const ip = await SecureStore.getItemAsync(SERVER_IP_KEY);
-    const port = await SecureStore.getItemAsync(SERVER_PORT_KEY);
-    return { ip, port };
+  async getServerUrl(): Promise<string> {
+    const saved = await SecureStore.getItemAsync(SERVER_URL_KEY);
+    return (saved?.trim().replace(/\/$/, '')) || DEFAULT_SERVER_URL;
   },
 
-  // Auth Token
+  async clearServerUrl() {
+    await SecureStore.deleteItemAsync(SERVER_URL_KEY);
+  },
+
+  // ── Auth Token ──────────────────────────────────────────────────────────────
   async setToken(token: string) {
     await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token);
   },
 
-  async getToken() {
+  async getToken(): Promise<string | null> {
     return await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
   },
 

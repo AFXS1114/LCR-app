@@ -2,13 +2,23 @@ import axios from 'axios';
 import { storage } from './storage';
 
 export const api = axios.create({
-  timeout: 10000,
+  timeout: 20000,
 });
 
+const resolveBaseUrl = async () => {
+  const envBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, '');
+  if (envBaseUrl) {
+    return envBaseUrl;
+  }
+
+  // Returns saved server URL or falls back to 'https://search-lcr.vercel.app' (matching web/src/App.jsx)
+  return await storage.getServerUrl();
+};
+
 api.interceptors.request.use(async (config) => {
-  const serverConfig = await storage.getServerConfig();
-  if (serverConfig.ip && serverConfig.port) {
-    config.baseURL = `http://${serverConfig.ip}:${serverConfig.port}`;
+  const baseURL = await resolveBaseUrl();
+  if (baseURL) {
+    config.baseURL = baseURL;
   }
 
   const token = await storage.getToken();
@@ -26,7 +36,6 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      // Logic to handle token expiration could go here
       await storage.removeToken();
     }
     return Promise.reject(error);

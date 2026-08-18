@@ -1,9 +1,7 @@
-import React from 'react';
-import { Tabs } from 'expo-router/js-tabs';
 import { useTheme } from '@/hooks/use-theme';
-import { Platform } from 'react-native';
+import { Tabs } from 'expo-router/js-tabs';
+import { Home, Search } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, PlusCircle, Search, Settings } from 'lucide-react-native';
 
 /**
  * Main app layout using expo-router/js-tabs.
@@ -20,7 +18,6 @@ export default function MainLayout() {
 
   return (
     <Tabs
-      tabBarPosition="bottom"
       screenOptions={{
         tabBarActiveTintColor: '#007AFF',
         tabBarInactiveTintColor: theme.textSecondary,
@@ -36,8 +33,6 @@ export default function MainLayout() {
           backgroundColor: theme.background,
         },
         headerTintColor: theme.text,
-        swipeEnabled: true,
-        animationEnabled: true,
       }}
     >
       <Tabs.Screen
@@ -48,27 +43,16 @@ export default function MainLayout() {
         }}
       />
       <Tabs.Screen
-        name="record"
-        options={{
-          title: 'Add Record',
-          tabBarIcon: ({ color }) => <PlusCircle size={24} color={color} />,
-          headerShown: false,
-        }}
-      />
-      <Tabs.Screen
         name="search"
         options={{
           title: 'Search',
           tabBarIcon: ({ color }) => <Search size={24} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color }) => <Settings size={24} color={color} />,
-        }}
-      />
+      {/* Hidden from tab bar — still routable */}
+      <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen name="_record_archive/add" options={{ href: null }} />
+      <Tabs.Screen name="_record_archive/[id]" options={{ href: null }} />
     </Tabs>
   );
 }
