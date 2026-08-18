@@ -14,10 +14,11 @@ async function readJsonResponse(response) {
 
 // ─── Initial Form State Helpers ───────────────────────────────────────────────
 const emptyBirth = () => ({
-  lcr_number: '', date_of_registration: '',
+  lcr_number: '', date_of_registration: '', page_no: '', book_no: '',
   name_of_child: '', sex: '', date_of_birth: '', place_of_birth: '', type_of_birth: '', order: '',
   mother_name: '', mother_age: '', mother_nationality: '', mother_religion: '',
   father_name: '', father_age: '', father_nationality: '', father_religion: '',
+  date_of_marriage_of_parents: '', place_of_marriage_of_parents: '',
   municipality_province: '',
   remarks: '',
 });
@@ -29,6 +30,20 @@ const emptyDeath = () => ({
   religion: '', occupation: '', mother_name: '', father_name: '',
   informant_name: '', informant_relationship: '', remarks: '',
 });
+
+function toProperCase(str) {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map(word => {
+      if (/^(i|ii|iii|iv|v|vi|vii|viii|ix|x)$/i.test(word)) {
+        return word.toUpperCase();
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
 
 // ─── Modal Overlay Wrapper Component ──────────────────────────────────────────
 function Modal({ title, icon, onClose, children }) {
@@ -59,6 +74,7 @@ function Modal({ title, icon, onClose, children }) {
 // ─── Edit Record Form Modal ───────────────────────────────────────────────────
 function EditRecordModal({ serverUrl, token, record, recordType, onSuccess, onClose }) {
   const [form, setForm] = useState(() => ({ ...record }));
+  const [activeTab, setActiveTab] = useState('lcr');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -73,10 +89,7 @@ function EditRecordModal({ serverUrl, token, record, recordType, onSuccess, onCl
     setError('');
     setSaving(true);
     try {
-      let endpoint = 'records';
-      if (recordType === 'birth') endpoint = 'birth-records';
-      if (recordType === 'death') endpoint = 'death-records';
-
+      let endpoint = recordType === 'birth' ? 'birth-records' : recordType === 'death' ? 'death-records' : 'records';
       const res = await fetch(`${serverUrl}/api/${endpoint}/${record.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -92,59 +105,66 @@ function EditRecordModal({ serverUrl, token, record, recordType, onSuccess, onCl
     }
   };
 
+  const tabs = recordType === 'birth' 
+    ? [{ id: 'lcr', label: 'LCR' }, { id: 'child', label: 'Child' }, { id: 'parents', label: 'Parents' }, { id: 'location', label: 'Location' }]
+    : null;
+
   return (
     <Modal title={`Edit ${recordType === 'birth' ? 'Birth' : recordType === 'death' ? 'Death' : 'General'} Record #${record.id}`} icon="✏️" onClose={onClose}>
+      {tabs && (
+        <div className="modal-form-tabs">
+          {tabs.map(t => (
+            <button key={t.id} className={`modal-tab-item ${activeTab === t.id ? 'active' : ''}`} onClick={() => setActiveTab(t.id)}>{t.label}</button>
+          ))}
+        </div>
+      )}
       <form onSubmit={submit} style={{ display: 'contents' }}>
         <div className="modal-body">
-          {error && (
-            <div style={{ padding: '10px 14px', background: 'rgba(244,63,94,0.15)', border: '1px solid rgba(244,63,94,0.3)', borderRadius: '10px', color: '#f43f5e', marginBottom: '16px', fontSize: '0.88rem' }}>
-              ⚠️ {error}
-            </div>
-          )}
-
+          {error && <div className="error-banner">⚠️ {error}</div>}
+          
           {recordType === 'birth' && (
-            <div className="form-grid">
-              <div className="form-field-group full-width">
-                <label className="form-label">Name of Child</label>
-                <input className="form-input-control" name="name_of_child" value={form.name_of_child || ''} onChange={handle} required />
-              </div>
-              <div className="form-field-group">
-                <label className="form-label">Sex</label>
-                <select className="form-input-control" name="sex" value={form.sex || ''} onChange={handle}>
-                  <option value="">— Select Sex —</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                </select>
-              </div>
-              <div className="form-field-group">
-                <label className="form-label">LCR Number</label>
-                <input className="form-input-control" name="lcr_number" value={form.lcr_number || ''} onChange={handle} />
-              </div>
-              <div className="form-field-group">
-                <label className="form-label">Date of Registration</label>
-                <input className="form-input-control" type="date" name="date_of_registration" value={form.date_of_registration || ''} onChange={handle} />
-              </div>
-              <div className="form-field-group">
-                <label className="form-label">Date of Birth</label>
-                <input className="form-input-control" type="date" name="date_of_birth" value={form.date_of_birth || ''} onChange={handle} />
-              </div>
-              <div className="form-field-group full-width">
-                <label className="form-label">Place of Birth</label>
-                <input className="form-input-control" name="place_of_birth" value={form.place_of_birth || ''} onChange={handle} />
-              </div>
-              <div className="form-field-group">
-                <label className="form-label">Mother's Name</label>
-                <input className="form-input-control" name="mother_name" value={form.mother_name || ''} onChange={handle} />
-              </div>
-              <div className="form-field-group">
-                <label className="form-label">Father's Name</label>
-                <input className="form-input-control" name="father_name" value={form.father_name || ''} onChange={handle} />
-              </div>
-              <div className="form-field-group full-width">
-                <label className="form-label">Remarks</label>
-                <textarea className="form-input-control" name="remarks" value={form.remarks || ''} onChange={handle} rows={3} />
-              </div>
-            </div>
+            <>
+              {activeTab === 'lcr' && (
+                <div className="form-grid">
+                  <div className="form-field-group"><label className="form-label">LCR No.</label><input className="form-input-control" name="lcr_number" value={form.lcr_number || ''} onChange={handle} /></div>
+                  <div className="form-field-group"><label className="form-label">Date of Registration</label><input className="form-input-control" type="date" name="date_of_registration" value={form.date_of_registration || ''} onChange={handle} /></div>
+                  <div className="form-field-group"><label className="form-label">Page No.</label><input className="form-input-control" name="page_no" value={form.page_no || ''} onChange={handle} /></div>
+                  <div className="form-field-group"><label className="form-label">Book No.</label><input className="form-input-control" name="book_no" value={form.book_no || ''} onChange={handle} /></div>
+                </div>
+              )}
+              {activeTab === 'child' && (
+                <div className="form-grid">
+                  <div className="form-field-group full-width"><label className="form-label">Name of Child</label><input className="form-input-control" name="name_of_child" value={form.name_of_child || ''} onChange={handle} required /></div>
+                  <div className="form-field-group"><label className="form-label">Sex</label><select className="form-input-control" name="sex" value={form.sex || ''} onChange={handle}><option value="">— Select —</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
+                  <div className="form-field-group"><label className="form-label">Date of Birth</label><input className="form-input-control" type="date" name="date_of_birth" value={form.date_of_birth || ''} onChange={handle} /></div>
+                  <div className="form-field-group full-width"><label className="form-label">Place of Birth</label><input className="form-input-control" name="place_of_birth" value={form.place_of_birth || ''} onChange={handle} /></div>
+                  <div className="form-field-group"><label className="form-label">Type of Birth</label><select className="form-input-control" name="type_of_birth" value={form.type_of_birth || ''} onChange={handle}><option value="">— Select —</option>{['Single','Twin','Triplet','Others'].map(o=><option key={o} value={o}>{o}</option>)}</select></div>
+                  <div className="form-field-group"><label className="form-label">Birth Order</label><select className="form-input-control" name="order" value={form.order || ''} onChange={handle}><option value="">— Select —</option>{['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th'].map(o=><option key={o} value={o}>{o}</option>)}</select></div>
+                </div>
+              )}
+              {activeTab === 'parents' && (
+                <div className="form-grid">
+                  <div className="form-field-group"><label className="form-label">Mother's Name</label><input className="form-input-control" name="mother_name" value={form.mother_name || ''} onChange={handle} /></div>
+                  <div className="form-field-group"><label className="form-label">Mother's Age</label><input className="form-input-control" name="mother_age" value={form.mother_age || ''} onChange={handle} /></div>
+                  <div className="form-field-group"><label className="form-label">Mother's Citizenship</label><input className="form-input-control" name="mother_nationality" value={form.mother_nationality || ''} onChange={handle} /></div>
+                  <div className="form-field-group"><label className="form-label">Mother's Religion</label><input className="form-input-control" name="mother_religion" value={form.mother_religion || ''} onChange={handle} /></div>
+                  <div className="form-field-group" style={{ gridColumn: 'span 2', height: '1px', background: 'var(--card-border)', margin: '4px 0' }}></div>
+                  <div className="form-field-group"><label className="form-label">Father's Name</label><input className="form-input-control" name="father_name" value={form.father_name || ''} onChange={handle} /></div>
+                  <div className="form-field-group"><label className="form-label">Father's Age</label><input className="form-input-control" name="father_age" value={form.father_age || ''} onChange={handle} /></div>
+                  <div className="form-field-group"><label className="form-label">Father's Citizenship</label><input className="form-input-control" name="father_nationality" value={form.father_nationality || ''} onChange={handle} /></div>
+                  <div className="form-field-group"><label className="form-label">Father's Religion</label><input className="form-input-control" name="father_religion" value={form.father_religion || ''} onChange={handle} /></div>
+                  <div className="form-field-group" style={{ gridColumn: 'span 2', height: '1px', background: 'var(--card-border)', margin: '4px 0' }}></div>
+                  <div className="form-field-group"><label className="form-label">Date of Marriage of Parents</label><input className="form-input-control" type="date" name="date_of_marriage_of_parents" value={form.date_of_marriage_of_parents || ''} onChange={handle} /></div>
+                  <div className="form-field-group"><label className="form-label">Place of Marriage of Parents</label><input className="form-input-control" name="place_of_marriage_of_parents" value={form.place_of_marriage_of_parents || ''} onChange={handle} /></div>
+                </div>
+              )}
+              {activeTab === 'location' && (
+                <div className="form-grid">
+                  <div className="form-field-group full-width"><label className="form-label">Municipality / Province</label><input className="form-input-control" name="municipality_province" value={form.municipality_province || ''} onChange={handle} /></div>
+                  <div className="form-field-group full-width"><label className="form-label">Remarks</label><textarea className="form-input-control" name="remarks" value={form.remarks || ''} onChange={handle} rows={3} /></div>
+                </div>
+              )}
+            </>
           )}
 
           {recordType === 'death' && (
@@ -209,12 +229,9 @@ function EditRecordModal({ serverUrl, token, record, recordType, onSuccess, onCl
             </div>
           )}
         </div>
-
         <div className="modal-footer">
           <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn-primary" disabled={saving}>
-            {saving ? 'Saving Changes…' : '💾 Save Changes'}
-          </button>
+          <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving Changes…' : '💾 Save Changes'}</button>
         </div>
       </form>
     </Modal>
@@ -306,6 +323,14 @@ function BirthFormModal({ serverUrl, token, onSuccess, onClose }) {
                 <label className="form-label">Date of Registration</label>
                 <input className="form-input-control" type="date" name="date_of_registration" value={form.date_of_registration} onChange={handle} />
               </div>
+              <div className="form-field-group">
+                <label className="form-label">Page No.</label>
+                <input className="form-input-control" name="page_no" value={form.page_no} onChange={handle} placeholder="e.g. 42" />
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">Book No.</label>
+                <input className="form-input-control" name="book_no" value={form.book_no} onChange={handle} placeholder="e.g. 7" />
+              </div>
             </div>
           )}
 
@@ -382,6 +407,15 @@ function BirthFormModal({ serverUrl, token, onSuccess, onClose }) {
               <div className="form-field-group">
                 <label className="form-label">Father's Religion</label>
                 <input className="form-input-control" name="father_religion" value={form.father_religion} onChange={handle} placeholder="Religion" />
+              </div>
+              <div className="form-field-group" style={{ gridColumn: 'span 2', height: '1px', background: 'var(--card-border)', margin: '4px 0' }}></div>
+              <div className="form-field-group">
+                <label className="form-label">Date of Marriage of Parents</label>
+                <input className="form-input-control" type="date" name="date_of_marriage_of_parents" value={form.date_of_marriage_of_parents} onChange={handle} />
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">Place of Marriage of Parents</label>
+                <input className="form-input-control" name="place_of_marriage_of_parents" value={form.place_of_marriage_of_parents} onChange={handle} placeholder="City / Town" />
               </div>
             </div>
           )}
@@ -610,8 +644,510 @@ function DeathFormModal({ serverUrl, token, onSuccess, onClose }) {
   );
 }
 
+// ─── Generate Form 1A Modal ───────────────────────────────────────────────────
+function Generate1AModal({ serverUrl, token, record, employees, mcr, mcrDesignation, municipality, province, onClose }) {
+  const today = new Date().toISOString().split('T')[0];
+  const [form, setForm] = useState({
+    date: today,
+    requestee: '',
+    purpose: '',
+    prn: '',
+    verified_by: '',
+    mcr_name: mcr || '',
+    amount_paid: '',
+    or_number: '',
+    date_paid: today,
+  });
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
+
+  const handle = e => {
+    const { name, value, type } = e.target;
+    const val = (type === 'text' || e.target.tagName === 'TEXTAREA') ? value.toUpperCase() : value;
+    setForm(prev => ({ ...prev, [name]: val }));
+  };
+
+  const getDocData = () => {
+    const verifiedByEmployee = employees.find(emp => emp.id === form.verified_by);
+    const verifiedByName = verifiedByEmployee ? verifiedByEmployee.name : '';
+    const verifiedByDesig = verifiedByEmployee ? toProperCase(verifiedByEmployee.designation) : '';
+
+    const childName = (record?.name_of_child || '').toUpperCase();
+    const sex = record?.sex || '';
+    const dateOfBirth = record?.date_of_birth
+      ? new Date(record.date_of_birth).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+      : '';
+    const placeOfBirth = record?.place_of_birth || '';
+    const motherName = (record?.mother_name || '').toUpperCase();
+    const motherCitizenship = record?.mother_nationality || '';
+    const fatherName = (record?.father_name || '').toUpperCase();
+    const fatherCitizenship = record?.father_nationality || '';
+    const marriageDate = record?.date_of_marriage_of_parents
+      ? new Date(record.date_of_marriage_of_parents).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+      : '';
+    const marriagePlace = record?.place_of_marriage_of_parents || '';
+    const lcrNumber = record?.lcr_number || '';
+    const pageNo = record?.page_no || '___';
+    const bookNo = record?.book_no || '___';
+    const dateOfReg = record?.date_of_registration
+      ? new Date(record.date_of_registration).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+      : '';
+    const formDate = form.date
+      ? new Date(form.date).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+      : '';
+    const datePaid = form.date_paid
+      ? new Date(form.date_paid + 'T00:00:00').toLocaleDateString('en-PH', { month: 'numeric', day: 'numeric', year: '2-digit' })
+      : '';
+    const mun = (municipality || '').toUpperCase();
+    const prov = province || '';
+    const mcrName = (form.mcr_name || '').toUpperCase();
+    const requestee = (form.requestee || '').toUpperCase();
+    const purpose = form.purpose || '';
+
+    return {
+      verifiedByName, verifiedByDesig, childName, sex, dateOfBirth, placeOfBirth,
+      motherName, motherCitizenship, fatherName, fatherCitizenship, marriageDate, marriagePlace,
+      lcrNumber, pageNo, bookNo, dateOfReg, formDate, datePaid, mun, prov, mcrName, requestee, purpose
+    };
+  };
+
+  const saveToDatabase = async () => {
+    setSaving(true);
+    setSaveStatus('');
+    const newEntry = {
+      id: Date.now(),
+      birth_record_id: record?.id || null,
+      name_of_child: record?.name_of_child || record?.name || '',
+      requestee: form.requestee,
+      purpose: form.purpose,
+      prn: form.prn,
+      verified_by: form.verified_by,
+      mcr_name: form.mcr_name,
+      amount_paid: form.amount_paid,
+      or_number: form.or_number,
+      date_paid: form.date_paid,
+      generated_date: form.date,
+      created_at: new Date().toISOString(),
+    };
+
+    // Always save to localStorage backup
+    try {
+      const localSaved = JSON.parse(localStorage.getItem('lcr-form1a-saved-records') || '[]');
+      localStorage.setItem('lcr-form1a-saved-records', JSON.stringify([newEntry, ...localSaved]));
+    } catch { /* ignore storage error */ }
+
+    try {
+      const res = await fetch(`${serverUrl}/api/form1a-records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          birth_record_id: record?.id || null,
+          requestee: form.requestee,
+          purpose: form.purpose,
+          prn: form.prn,
+          verified_by: form.verified_by,
+          mcr_name: form.mcr_name,
+          amount_paid: form.amount_paid,
+          or_number: form.or_number,
+          date_paid: form.date_paid,
+          generated_date: form.date,
+        }),
+      });
+      if (res.ok) {
+        setSaveStatus('Form 1A saved to database & local archive!');
+      } else {
+        setSaveStatus('Form 1A saved to local archive!');
+      }
+    } catch (err) {
+      setSaveStatus('Form 1A saved to local archive!');
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveStatus(''), 4000);
+    }
+    return true;
+  };
+
+  const buildHtmlDoc = () => {
+    const d = getDocData();
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>LCR Form 1A</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 11.5pt;
+    color: #000;
+    background: #fff;
+  }
+  .page {
+    width: 8.5in;
+    min-height: 11in;
+    margin: 0 auto;
+    padding: 0.65in 1in 0.65in 1in;
+    position: relative;
+  }
+  .corner-label { font-size: 10pt; line-height: 1.5; margin-bottom: 6px; }
+  .corner-label em { font-style: italic; }
+  .doc-header { text-align: center; margin-bottom: 4px; }
+  .doc-header p { font-size: 11.5pt; line-height: 1.6; }
+  .doc-header .municipality { font-weight: bold; text-transform: uppercase; }
+  .office-title { text-align: center; font-weight: bold; font-style: italic; font-size: 13pt; margin: 10px 0 16px; }
+  .doc-date { text-align: right; margin-bottom: 20px; font-size: 11.5pt; }
+  .salutation { font-weight: bold; margin-bottom: 14px; font-size: 11.5pt; }
+  .cert-para { margin-left: 36pt; text-align: justify; margin-bottom: 16px; font-size: 11.5pt; line-height: 1.6; }
+  .data-table { margin-left: 90pt; margin-bottom: 16px; }
+  .data-row { display: flex; align-items: baseline; margin-bottom: 3px; font-size: 11pt; font-style: italic; }
+  .data-label { min-width: 200pt; font-style: italic; padding-right: 6pt; }
+  .data-colon { padding-right: 8pt; font-style: italic; }
+  .data-value { font-style: italic; }
+  .data-value.bold-caps { font-weight: bold; font-style: italic; text-transform: uppercase; }
+  .closing-para { margin-left: 36pt; text-align: justify; margin-top: 18px; margin-bottom: 32px; font-size: 11.5pt; line-height: 1.7; }
+  .closing-para .hl { font-weight: bold; text-decoration: underline; }
+  .sig-section { margin-top: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
+  .sig-left { min-width: 220pt; }
+  .sig-right { text-align: center; min-width: 190pt; }
+  .sig-label { font-size: 11pt; margin-bottom: 36pt; }
+  .sig-name { font-weight: bold; text-transform: uppercase; font-size: 11pt; border-top: 1px solid #000; padding-top: 3px; display: inline-block; min-width: 160pt; text-align: center; }
+  .sig-desig { font-size: 10pt; text-align: center; }
+  .payment-section { margin-top: 28px; font-size: 11pt; line-height: 1.8; }
+  .note { margin-top: 18px; font-size: 10pt; font-style: italic; }
+  .note span { font-weight: bold; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; }
+    @page { margin: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:2px;">
+    <div class="corner-label">
+      LCR Form No. 1A<br/>
+      <em>(Birth Available)</em>
+    </div>
+    <div></div>
+  </div>
+
+  <div class="doc-header">
+    <p>Republic of the Philippines</p>
+    <p class="municipality">Municipality of ${d.mun || '____________________'}</p>
+    <p>${d.prov || '____________________'}</p>
+  </div>
+
+  <div class="office-title">Office of the Municipal Civil Registrar</div>
+  <div class="doc-date">${d.formDate}</div>
+  <div class="salutation">TO WHOM IT MAY CONCERN:</div>
+
+  <div class="cert-para">
+    We certify that, among others, the following facts of birth that appears in our
+    Register of Births on page <strong>${d.pageNo}</strong> of book number <strong>${d.bookNo}</strong>.
+  </div>
+
+  <div class="data-table">
+    <div class="data-row"><span class="data-label">Population Reference Number (PRN)</span><span class="data-colon">:</span><span class="data-value">${form.prn || ''}</span></div>
+    <div class="data-row"><span class="data-label">Registry Number</span><span class="data-colon">:</span><span class="data-value">${d.lcrNumber}</span></div>
+    <div class="data-row"><span class="data-label">Date of Registration</span><span class="data-colon">:</span><span class="data-value">${d.dateOfReg}</span></div>
+    <div class="data-row"><span class="data-label">Name of Child</span><span class="data-colon">:</span><span class="data-value bold-caps">${d.childName}</span></div>
+    <div class="data-row"><span class="data-label">Sex</span><span class="data-colon">:</span><span class="data-value">${d.sex}</span></div>
+    <div class="data-row"><span class="data-label">Date of Birth</span><span class="data-colon">:</span><span class="data-value">${d.dateOfBirth}</span></div>
+    <div class="data-row"><span class="data-label">Place of Birth</span><span class="data-colon">:</span><span class="data-value">${d.placeOfBirth}</span></div>
+    <div class="data-row"><span class="data-label">Name of Mother</span><span class="data-colon">:</span><span class="data-value bold-caps">${d.motherName}</span></div>
+    <div class="data-row"><span class="data-label">Citizenship of Mother</span><span class="data-colon">:</span><span class="data-value">${d.motherCitizenship}</span></div>
+    <div class="data-row"><span class="data-label">Name of Father</span><span class="data-colon">:</span><span class="data-value bold-caps">${d.fatherName}</span></div>
+    <div class="data-row"><span class="data-label">Citizenship of Father</span><span class="data-colon">:</span><span class="data-value">${d.fatherCitizenship}</span></div>
+    <div class="data-row"><span class="data-label">Date of Marriage of Parents</span><span class="data-colon">:</span><span class="data-value">${d.marriageDate}</span></div>
+    <div class="data-row"><span class="data-label">Place of Marriage of Parents</span><span class="data-colon">:</span><span class="data-value">${d.marriagePlace}</span></div>
+  </div>
+
+  <div class="closing-para">
+    This certification is issued to <span class="hl">${d.requestee}</span> upon his/her request for
+    <span class="hl">${d.purpose}</span> purpose(s).
+  </div>
+
+  <div class="sig-section">
+    <div class="sig-left">
+      <div class="sig-label">Verified by:</div>
+      <div style="margin-top:4pt;">
+        <div class="sig-name">${d.verifiedByName || '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'}</div>
+        <div class="sig-desig">${d.verifiedByDesig || ''}</div>
+      </div>
+    </div>
+    <div class="sig-right">
+      <div class="sig-name">${d.mcrName || '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'}</div>
+      <div class="sig-desig">Municipal Civil Registrar</div>
+    </div>
+  </div>
+
+  <div class="payment-section">
+    Amount Paid: P${form.amount_paid || ''}<br/>
+    O.R Number &nbsp;: ${form.or_number || ''}<br/>
+    Date Paid &nbsp;&nbsp;&nbsp;: ${d.datePaid}
+  </div>
+
+  <div class="note">
+    <span>NOTE:</span> <em>A mark, erasure or alteration of any entry invalidates this certification.</em>
+  </div>
+</div>
+</body>
+</html>`;
+  };
+
+  const handlePrint = async () => {
+    await saveToDatabase();
+    const html = buildHtmlDoc();
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 500);
+  };
+
+  const handleExportDocx = async () => {
+    await saveToDatabase();
+    const html = buildHtmlDoc();
+    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' "+
+      "xmlns:w='urn:schemas-microsoft-com:office:word' "+
+      "xmlns='http://www.w3.org/TR/REC-html40'>"+
+      "<head><meta charset='utf-8'><title>Form 1A</title></head><body>";
+    const footer = "</body></html>";
+    const sourceHTML = header + html + footer;
+
+    const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const childName = (record?.name_of_child || 'Record').replace(/[^a-zA-Z0-9]/g, '_');
+    a.download = `Form_1A_${childName}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <Modal title="Generate Form 1A — Certified True Copy" icon="📋" onClose={onClose}>
+      <div className="modal-body">
+        {saveStatus && (
+          <div style={{ padding: '10px 14px', background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: '10px', color: '#10b981', marginBottom: '16px', fontSize: '0.88rem' }}>
+            ✨ {saveStatus}
+          </div>
+        )}
+
+        <div className="form-grid">
+          <div className="form-field-group">
+            <label className="form-label">Date</label>
+            <input className="form-input-control" type="date" name="date" value={form.date} onChange={handle} required />
+          </div>
+          <div className="form-field-group">
+            <label className="form-label">Requestee (Requested By)</label>
+            <input className="form-input-control" name="requestee" value={form.requestee} onChange={handle} placeholder="Full name of requester" required />
+          </div>
+          <div className="form-field-group">
+            <label className="form-label">Purpose</label>
+            <input className="form-input-control" name="purpose" value={form.purpose} onChange={handle} placeholder="e.g. TRAVEL ABROAD" required />
+          </div>
+          <div className="form-field-group">
+            <label className="form-label">Population Reference No. (PRN)</label>
+            <input className="form-input-control" name="prn" value={form.prn} onChange={handle} placeholder="PRN (optional)" />
+          </div>
+          <div className="form-field-group">
+            <label className="form-label">Verified By</label>
+            <select className="form-input-control" name="verified_by" value={form.verified_by} onChange={(e) => setForm(prev => ({ ...prev, verified_by: e.target.value }))}>
+              <option value="">— Select Employee —</option>
+              {employees.map(emp => (
+                <option key={emp.id} value={emp.id}>{emp.name} — {emp.designation}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-field-group">
+            <label className="form-label">Municipal Civil Registrar (MCR)</label>
+            <input className="form-input-control" name="mcr_name" value={form.mcr_name} onChange={handle} placeholder="MCR full name" />
+          </div>
+        </div>
+
+        <div style={{ padding: '8px 14px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '10px', margin: '14px 0 6px', fontSize: '0.82rem', color: 'var(--text-subtle)' }}>
+          💳 Payment Details
+        </div>
+
+        <div className="form-grid">
+          <div className="form-field-group">
+            <label className="form-label">Amount Paid (P)</label>
+            <input className="form-input-control" type="number" name="amount_paid" value={form.amount_paid} onChange={(e) => setForm(prev => ({ ...prev, amount_paid: e.target.value }))} placeholder="175.00" step="0.01" />
+          </div>
+          <div className="form-field-group">
+            <label className="form-label">O.R. Number</label>
+            <input className="form-input-control" name="or_number" value={form.or_number} onChange={handle} placeholder="Official Receipt #" />
+          </div>
+          <div className="form-field-group">
+            <label className="form-label">Date Paid</label>
+            <input className="form-input-control" type="date" name="date_paid" value={form.date_paid} onChange={handle} />
+          </div>
+        </div>
+      </div>
+
+      <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+        <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ color: 'var(--accent-primary)', borderColor: 'rgba(56,189,248,0.3)' }}
+            disabled={saving}
+            onClick={saveToDatabase}
+          >
+            {saving ? 'Saving...' : '💾 Save to DB'}
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+            onClick={handleExportDocx}
+          >
+            📄 Export to DOCX
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #6d28d9)' }}
+            onClick={handlePrint}
+          >
+            🖨️ Print / Save PDF
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Main Application Component ───────────────────────────────────────────────
 export default function App() {
+  // ─── Settings: Employees, MCR & Office Info ─────────────────────────────────
+  const [employees, setEmployees] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('lcr-employees') || '[]'); } catch { return []; }
+  });
+  const [mcr, setMcr] = useState(() => localStorage.getItem('lcr-mcr') || '');
+  const [municipality, setMunicipality] = useState(() => localStorage.getItem('lcr-municipality') || '');
+  const [province, setProvince] = useState(() => localStorage.getItem('lcr-province') || '');
+  const [newEmpName, setNewEmpName] = useState('');
+  const [newEmpDesignation, setNewEmpDesignation] = useState('');
+  const [mcrInput, setMcrInput] = useState(() => localStorage.getItem('lcr-mcr') || '');
+  const [municipalityInput, setMunicipalityInput] = useState(() => localStorage.getItem('lcr-municipality') || '');
+  const [provinceInput, setProvinceInput] = useState(() => localStorage.getItem('lcr-province') || '');
+  const [mcrSaved, setMcrSaved] = useState(false);
+
+  // Fetch office settings & employees from database
+  const fetchOfficeAndEmployees = useCallback(async () => {
+    if (!token) return;
+    const baseUrl = serverUrl.trim().replace(/\/$/, '');
+    try {
+      const officeRes = await fetch(`${baseUrl}/api/settings/office`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (officeRes.ok) {
+        const officeData = await readJsonResponse(officeRes);
+        if (officeData.mcr_name) { setMcr(officeData.mcr_name); setMcrInput(officeData.mcr_name); }
+        if (officeData.municipality) { setMunicipality(officeData.municipality); setMunicipalityInput(officeData.municipality); }
+        if (officeData.province) { setProvince(officeData.province); setProvinceInput(officeData.province); }
+      }
+    } catch { /* fallback to local */ }
+
+    try {
+      const empRes = await fetch(`${baseUrl}/api/employees`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (empRes.ok) {
+        const empData = await readJsonResponse(empRes);
+        if (Array.isArray(empData.employees)) {
+          setEmployees(empData.employees);
+          localStorage.setItem('lcr-employees', JSON.stringify(empData.employees));
+        }
+      }
+    } catch { /* fallback to local */ }
+  }, [token, serverUrl]);
+
+  useEffect(() => {
+    if (token) {
+      fetchOfficeAndEmployees();
+    }
+  }, [token, fetchOfficeAndEmployees]);
+
+  const addEmployee = async () => {
+    if (!newEmpName.trim()) return;
+    const name = newEmpName.trim().toUpperCase();
+    const designation = toProperCase(newEmpDesignation.trim());
+    const baseUrl = serverUrl.trim().replace(/\/$/, '');
+
+    try {
+      const res = await fetch(`${baseUrl}/api/employees`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name, designation }),
+      });
+      if (res.ok) {
+        const data = await readJsonResponse(res);
+        const updated = [...employees, data];
+        setEmployees(updated);
+        localStorage.setItem('lcr-employees', JSON.stringify(updated));
+      } else {
+        throw new Error('API save failed');
+      }
+    } catch {
+      // Fallback local save
+      const newEmp = { id: Date.now().toString(), name, designation };
+      const updated = [...employees, newEmp];
+      setEmployees(updated);
+      localStorage.setItem('lcr-employees', JSON.stringify(updated));
+    }
+    setNewEmpName('');
+    setNewEmpDesignation('');
+  };
+
+  const removeEmployee = async (id) => {
+    const baseUrl = serverUrl.trim().replace(/\/$/, '');
+    try {
+      await fetch(`${baseUrl}/api/employees/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch { /* ignore error */ }
+
+    const updated = employees.filter(e => String(e.id) !== String(id));
+    setEmployees(updated);
+    localStorage.setItem('lcr-employees', JSON.stringify(updated));
+  };
+
+  const saveMcr = async () => {
+    setMcr(mcrInput);
+    localStorage.setItem('lcr-mcr', mcrInput);
+    setMunicipality(municipalityInput);
+    localStorage.setItem('lcr-municipality', municipalityInput);
+    setProvince(provinceInput);
+    localStorage.setItem('lcr-province', provinceInput);
+
+    const baseUrl = serverUrl.trim().replace(/\/$/, '');
+    try {
+      await fetch(`${baseUrl}/api/settings/office`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          mcr_name: mcrInput,
+          municipality: municipalityInput,
+          province: provinceInput,
+        }),
+      });
+    } catch { /* ignore error */ }
+
+    setMcrSaved(true);
+    setTimeout(() => setMcrSaved(false), 3000);
+  };
+
+  // ─── Form 1A Modal State ─────────────────────────────────────────────────────
+  const [show1AModal, setShow1AModal] = useState(false);
+  const [form1ARecord, setForm1ARecord] = useState(null);
   const [serverUrl, setServerUrl] = useState('https://search-lcr.vercel.app');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -714,6 +1250,50 @@ export default function App() {
       setIsLoading(false);
     }
   };
+
+  // Form 1A Saved Records Archive State
+  const [savedForm1As, setSavedForm1As] = useState([]);
+
+  const fetchSavedForm1As = useCallback(async () => {
+    let localList = [];
+    try {
+      localList = JSON.parse(localStorage.getItem('lcr-form1a-saved-records') || '[]');
+    } catch { localList = []; }
+
+    if (!token) {
+      setSavedForm1As(localList);
+      return;
+    }
+
+    try {
+      const baseUrl = serverUrl.trim().replace(/\/$/, '');
+      const res = await fetch(`${baseUrl}/api/form1a-records`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await readJsonResponse(res);
+      if (res.ok && Array.isArray(data.records)) {
+        // Combine server records & local records, removing duplicates by id
+        const serverRecords = data.records;
+        const combined = [...serverRecords];
+        for (const loc of localList) {
+          if (!combined.some(s => s.id === loc.id || (s.or_number && s.or_number === loc.or_number))) {
+            combined.push(loc);
+          }
+        }
+        setSavedForm1As(combined);
+      } else {
+        setSavedForm1As(localList);
+      }
+    } catch (err) {
+      setSavedForm1As(localList);
+    }
+  }, [token, serverUrl]);
+
+  useEffect(() => {
+    if (token && (activePage === 'issuance' || (activePage === 'settings' && isPasscodeUnlocked))) {
+      fetchSavedForm1As();
+    }
+  }, [token, activePage, isPasscodeUnlocked, fetchSavedForm1As]);
 
   useEffect(() => {
     if (token && activePage === 'search') {
@@ -941,10 +1521,16 @@ export default function App() {
             <span>🔍</span> Search Records
           </button>
           <button
+            className={`nav-link ${activePage === 'issuance' ? 'active' : ''}`}
+            onClick={() => setActivePage('issuance')}
+          >
+            <span>📋</span> 1A Issuance Log
+          </button>
+          <button
             className={`nav-link ${activePage === 'settings' ? 'active' : ''}`}
             onClick={() => setActivePage('settings')}
           >
-            <span>⚙️</span> Settings & Management
+            <span>⚙️</span> Settings &amp; Management
           </button>
         </nav>
 
@@ -1150,6 +1736,99 @@ export default function App() {
               </div>
             </section>
           </>
+        ) : activePage === 'issuance' ? (
+          /* ─── 1A FORM ISSUANCE REGISTRY PAGE ─────────────────────────────────── */
+          <div style={{ display: 'grid', gap: '24px' }}>
+            <section className="search-header-hero">
+              <div className="search-hero-top">
+                <div className="page-headline">
+                  <h1>📋 Form 1A Issuance Registry &amp; History</h1>
+                  <p>Complete real-time log of all issued LCR Form 1A birth certifications and official receipt payments.</p>
+                </div>
+                <button
+                  className="btn-primary"
+                  onClick={fetchSavedForm1As}
+                  style={{ height: '40px', fontSize: '0.85rem' }}
+                >
+                  🔄 Refresh Log
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', paddingTop: '10px' }}>
+                <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--card-border)', padding: '14px 18px', borderRadius: '14px' }}>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-subtle)', fontWeight: 700, textTransform: 'uppercase' }}>Total Issued Forms</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--accent-primary)', marginTop: '2px' }}>{savedForm1As.length}</div>
+                </div>
+                <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--card-border)', padding: '14px 18px', borderRadius: '14px' }}>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-subtle)', fontWeight: 700, textTransform: 'uppercase' }}>Total Fees Collected</div>
+                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#34d399', marginTop: '2px' }}>
+                    ₱{savedForm1As.reduce((acc, curr) => acc + (parseFloat(curr.amount_paid) || 0), 0).toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="records-container-card" style={{ minHeight: '450px' }}>
+              <div className="records-card-header">
+                <h3>📜 Recent 1A Form Issuance Records</h3>
+                <span className="results-count-badge">{savedForm1As.length} Records</span>
+              </div>
+
+              {savedForm1As.length === 0 ? (
+                <div className="state-box">
+                  <div className="state-icon">📋</div>
+                  <p>No Form 1A issuances logged yet.</p>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-subtle)' }}>Generate a 1A Form from any birth record to record issuances automatically.</span>
+                </div>
+              ) : (
+                <div className="table-wrapper">
+                  <table className="records-table">
+                    <thead>
+                      <tr>
+                        <th>Child Name</th>
+                        <th>Requestee</th>
+                        <th>Purpose</th>
+                        <th>PRN</th>
+                        <th>O.R. Number</th>
+                        <th>Amount Paid</th>
+                        <th>Date Issued</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {savedForm1As.map((f1a) => (
+                        <tr key={f1a.id}>
+                          <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{f1a.name_of_child || '—'}</td>
+                          <td>{f1a.requestee || '—'}</td>
+                          <td>{f1a.purpose || '—'}</td>
+                          <td><code>{f1a.prn || '—'}</code></td>
+                          <td><code>{f1a.or_number || '—'}</code></td>
+                          <td style={{ fontWeight: 700, color: '#34d399' }}>₱{parseFloat(f1a.amount_paid || 0).toFixed(2)}</td>
+                          <td>{f1a.generated_date || (f1a.created_at ? new Date(f1a.created_at).toLocaleDateString() : '—')}</td>
+                          <td>
+                            <button
+                              className="btn-secondary"
+                              style={{ padding: '4px 12px', fontSize: '0.8rem', height: '32px' }}
+                              onClick={() => {
+                                setForm1ARecord({
+                                  id: f1a.birth_record_id,
+                                  name_of_child: f1a.name_of_child,
+                                  lcr_number: f1a.record_lcr_number,
+                                });
+                                setShow1AModal(true);
+                              }}
+                            >
+                              🖨️ Re-Print / Export
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </div>
         ) : (
           /* ─── SETTINGS & MANAGEMENT PAGE ──────────────────────────────────────── */
           <section style={{ maxWidth: '800px', margin: '0 auto', width: '100%', display: 'grid', gap: '24px' }}>
@@ -1259,6 +1938,150 @@ export default function App() {
                     </button>
                   </form>
                 </div>
+
+                {/* Office Info & MCR Settings Card */}
+                <div className="records-container-card">
+                  <div className="records-card-header">
+                    <h3>🏛️ Office Information &amp; MCR</h3>
+                  </div>
+                  <div style={{ display: 'grid', gap: '12px', marginTop: '12px' }}>
+                    <div className="form-grid">
+                      <div className="form-field-group">
+                        <label className="form-label">Municipality Name</label>
+                        <input
+                          className="form-input-control"
+                          value={municipalityInput}
+                          onChange={(e) => setMunicipalityInput(e.target.value)}
+                          placeholder="e.g. Bulan"
+                        />
+                      </div>
+                      <div className="form-field-group">
+                        <label className="form-label">Province</label>
+                        <input
+                          className="form-input-control"
+                          value={provinceInput}
+                          onChange={(e) => setProvinceInput(e.target.value)}
+                          placeholder="e.g. Sorsogon"
+                        />
+                      </div>
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Municipal Civil Registrar (MCR) Full Name</label>
+                      <input
+                        className="form-input-control"
+                        value={mcrInput}
+                        onChange={(e) => setMcrInput(e.target.value.toUpperCase())}
+                        placeholder="Full name of Municipal Civil Registrar"
+                      />
+                    </div>
+                    {mcrSaved && (
+                      <div style={{ padding: '8px 14px', background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: '10px', color: '#10b981', fontSize: '0.88rem' }}>
+                        ✨ Office info &amp; MCR saved!
+                      </div>
+                    )}
+                    <button className="btn-primary" style={{ justifySelf: 'flex-start' }} onClick={saveMcr}>
+                      💾 Save Office Info &amp; MCR
+                    </button>
+                  </div>
+                </div>
+
+                {/* Employees Management Card */}
+                <div className="records-container-card">
+                  <div className="records-card-header">
+                    <h3>👤 Employee Directory (for Form 1A)</h3>
+                  </div>
+                  <div style={{ display: 'grid', gap: '12px', marginTop: '12px' }}>
+                    <div className="form-grid">
+                      <div className="form-field-group">
+                        <label className="form-label">Employee Name</label>
+                        <input
+                          className="form-input-control"
+                          value={newEmpName}
+                          onChange={(e) => setNewEmpName(e.target.value)}
+                          placeholder="Full name"
+                        />
+                      </div>
+                      <div className="form-field-group">
+                        <label className="form-label">Designation / Title</label>
+                        <input
+                          className="form-input-control"
+                          value={newEmpDesignation}
+                          onChange={(e) => setNewEmpDesignation(e.target.value)}
+                          placeholder="e.g. Registration Officer I"
+                        />
+                      </div>
+                    </div>
+                    <button className="btn-primary" style={{ justifySelf: 'flex-start' }} onClick={addEmployee}>
+                      ➕ Add Employee
+                    </button>
+
+                    {employees.length === 0 ? (
+                      <div style={{ padding: '14px', background: 'var(--card-bg)', borderRadius: '10px', textAlign: 'center', color: 'var(--text-subtle)', fontSize: '0.88rem' }}>
+                        No employees added yet. Add an employee above.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'grid', gap: '8px' }}>
+                        {employees.map(emp => (
+                          <div key={emp.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '10px' }}>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>{emp.name}</div>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-subtle)' }}>{emp.designation}</div>
+                            </div>
+                            <button
+                              className="btn-secondary"
+                              style={{ padding: '4px 10px', fontSize: '0.8rem', color: '#f43f5e', borderColor: 'rgba(244,63,94,0.3)' }}
+                              onClick={() => removeEmployee(emp.id)}
+                            >
+                              🗑️ Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Saved Form 1A Records Archive */}
+                <div className="records-container-card">
+                  <div className="records-card-header">
+                    <h3>📋 Saved Form 1A Certifications Archive</h3>
+                    <button className="btn-secondary" style={{ padding: '4px 12px', fontSize: '0.8rem' }} onClick={fetchSavedForm1As}>
+                      🔄 Refresh
+                    </button>
+                  </div>
+                  {savedForm1As.length === 0 ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-subtle)', fontSize: '0.88rem' }}>
+                      No Form 1A certifications saved yet. Form 1A records will automatically appear here when generated.
+                    </div>
+                  ) : (
+                    <div className="table-wrapper" style={{ marginTop: '8px' }}>
+                      <table className="records-table">
+                        <thead>
+                          <tr>
+                            <th>Child Name</th>
+                            <th>Requestee</th>
+                            <th>Purpose</th>
+                            <th>O.R. Number</th>
+                            <th>Amount</th>
+                            <th>Date Generated</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {savedForm1As.map((f1a) => (
+                            <tr key={f1a.id}>
+                              <td style={{ fontWeight: 700 }}>{f1a.name_of_child || '—'}</td>
+                              <td>{f1a.requestee || '—'}</td>
+                              <td>{f1a.purpose || '—'}</td>
+                              <td><code>{f1a.or_number || '—'}</code></td>
+                              <td>₱{f1a.amount_paid || '0.00'}</td>
+                              <td>{f1a.generated_date || (f1a.created_at ? new Date(f1a.created_at).toLocaleDateString() : '—')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </section>
@@ -1338,6 +2161,14 @@ export default function App() {
                     <div className="form-field-group">
                       <label className="form-label">LCR Number</label>
                       <input className="form-input-control" value={selectedRecord.lcr_number || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Page No.</label>
+                      <input className="form-input-control" value={selectedRecord.page_no || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Book No.</label>
+                      <input className="form-input-control" value={selectedRecord.book_no || '—'} readOnly />
                     </div>
                     <div className="form-field-group">
                       <label className="form-label">Date of Registration</label>
@@ -1454,6 +2285,15 @@ export default function App() {
                       <label className="form-label">Father's Religion</label>
                       <input className="form-input-control" value={selectedRecord.father_religion || '—'} readOnly />
                     </div>
+                    <div className="form-field-group" style={{ gridColumn: 'span 2', height: '1px', background: 'var(--card-border)', margin: '4px 0' }}></div>
+                    <div className="form-field-group">
+                      <label className="form-label">Date of Marriage of Parents</label>
+                      <input className="form-input-control" value={selectedRecord.date_of_marriage_of_parents ? new Date(selectedRecord.date_of_marriage_of_parents).toLocaleDateString() : '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Place of Marriage of Parents</label>
+                      <input className="form-input-control" value={selectedRecord.place_of_marriage_of_parents || '—'} readOnly />
+                    </div>
                   </>
                 )}
                 {currentTab === 'death' && (
@@ -1510,7 +2350,17 @@ export default function App() {
                 🗑️ Delete Record
               </button>
             </div>
-            <button type="button" className="btn-secondary" onClick={() => setSelectedRecord(null)}>Close Inspector</button>
+            <button
+              type="button"
+              className="btn-primary"
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #6d28d9)' }}
+              onClick={() => {
+                setForm1ARecord(selectedRecord);
+                setShow1AModal(true);
+              }}
+            >
+              📋 Generate 1A Form
+            </button>
           </div>
         </Modal>
       )}
@@ -1527,6 +2377,20 @@ export default function App() {
             setSelectedRecord(null);
           }}
           onClose={() => setEditingRecord(null)}
+        />
+      )}
+
+      {/* Form 1A Generator Modal */}
+      {show1AModal && (
+        <Generate1AModal
+          serverUrl={baseUrl}
+          token={token}
+          record={form1ARecord}
+          employees={employees}
+          mcr={mcr}
+          municipality={municipality}
+          province={province}
+          onClose={() => setShow1AModal(false)}
         />
       )}
 

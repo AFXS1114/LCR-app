@@ -111,6 +111,8 @@ async function initDb() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         lcr_number TEXT,
         date_of_registration TEXT,
+        page_no TEXT,
+        book_no TEXT,
         name_of_child TEXT NOT NULL,
         sex TEXT,
         date_of_birth TEXT,
@@ -125,6 +127,8 @@ async function initDb() {
         father_age TEXT,
         father_nationality TEXT,
         father_religion TEXT,
+        date_of_marriage_of_parents TEXT,
+        place_of_marriage_of_parents TEXT,
         municipality_province TEXT,
         remarks TEXT,
         created_by INTEGER,
@@ -132,6 +136,17 @@ async function initDb() {
         FOREIGN KEY (created_by) REFERENCES users(id)
       );
     `);
+
+    // Migrations for newly added birth fields
+    const alterCols = [
+      'ALTER TABLE birth_records ADD COLUMN page_no TEXT',
+      'ALTER TABLE birth_records ADD COLUMN book_no TEXT',
+      'ALTER TABLE birth_records ADD COLUMN date_of_marriage_of_parents TEXT',
+      'ALTER TABLE birth_records ADD COLUMN place_of_marriage_of_parents TEXT',
+    ];
+    for (const alterSql of alterCols) {
+      try { await dbClient.execute(alterSql); } catch (e) { /* ignore if already exists */ }
+    }
 
     await dbClient.execute(`
       CREATE TABLE IF NOT EXISTS death_records (
@@ -164,6 +179,33 @@ async function initDb() {
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL,
         updated_at TEXT DEFAULT (datetime('now'))
+      );
+    `);
+
+    await dbClient.execute(`
+      CREATE TABLE IF NOT EXISTS employees (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        designation TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+    `);
+
+    await dbClient.execute(`
+      CREATE TABLE IF NOT EXISTS form1a_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        birth_record_id INTEGER,
+        requestee TEXT,
+        purpose TEXT,
+        prn TEXT,
+        verified_by TEXT,
+        mcr_name TEXT,
+        amount_paid TEXT,
+        or_number TEXT,
+        date_paid TEXT,
+        generated_date TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (birth_record_id) REFERENCES birth_records(id)
       );
     `);
 
@@ -309,6 +351,98 @@ app.put('/api/settings/passcode', authenticate, async (req, res) => {
     });
 
     res.json({ success: true, message: 'Passcode updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/settings/office
+app.get('/api/settings/office', authenticate, async (req, res) => {
+  try {
+    const result = await dbClient.execute("SELECT key, value FROM settings WHERE key IN ('mcr_name', 'municipality', 'province')");
+    const info = {};
+    for (const r of result.rows) {
+      info[r.key] = r.value;
+    }
+    res.json({
+      mcr_name: info.mcr_name || '',
+      municipality: info.municipality || '',
+      province: info.province || '',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/settings/office
+app.put('/api/settings/office', authenticate, async (req, res) => {
+  const { mcr_name, municipality, province } = req.body;
+  try {
+    const items = [
+      ['mcr_name', mcr_name || ''],
+      ['municipality', municipality || ''],
+      ['province', province || ''],
+    ];
+
+    for (const [key, value] of items) {
+      await dbClient.execute({
+        sql: 'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime(\'now\')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at',
+        args: [key, String(value).trim()]
+      });
+    }
+
+    res.json({ success: true, message: 'Office information & MCR updated in database' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// Routes: Employees Management
+// ─────────────────────────────────────────────
+
+// GET /api/employees
+app.get('/api/employees', authenticate, async (req, res) => {
+  try {
+    const result = await dbClient.execute('SELECT * FROM employees ORDER BY id ASC');
+    res.json({ employees: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/employees
+app.post('/api/employees', authenticate, async (req, res) => {
+  const { name, designation } = req.body;
+  if (!name || !designation) {
+    return res.status(400).json({ error: 'Name and designation are required' });
+  }
+
+  try {
+    const result = await dbClient.execute({
+      sql: 'INSERT INTO employees (name, designation) VALUES (?, ?)',
+      args: [String(name).trim(), String(designation).trim()]
+    });
+
+    const newEmp = (await dbClient.execute({
+      sql: 'SELECT * FROM employees WHERE id = ?',
+      args: [Number(result.lastInsertRowid)]
+    })).rows[0];
+
+    res.status(201).json(newEmp);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/employees/:id
+app.delete('/api/employees/:id', authenticate, async (req, res) => {
+  try {
+    await dbClient.execute({
+      sql: 'DELETE FROM employees WHERE id = ?',
+      args: [req.params.id]
+    });
+    res.json({ success: true, message: 'Employee deleted from database' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -569,10 +703,11 @@ app.get('/api/birth-records', authenticate, async (req, res) => {
 app.put('/api/birth-records/:id', authenticate, async (req, res) => {
   const id = req.params.id;
   const {
-    lcr_number, date_of_registration, name_of_child, sex,
+    lcr_number, date_of_registration, page_no, book_no, name_of_child, sex,
     date_of_birth, place_of_birth, type_of_birth, order: birthOrder,
     mother_name, mother_age, mother_nationality, mother_religion,
     father_name, father_age, father_nationality, father_religion,
+    date_of_marriage_of_parents, place_of_marriage_of_parents,
     municipality_province, remarks
   } = req.body;
 
@@ -581,17 +716,19 @@ app.put('/api/birth-records/:id', authenticate, async (req, res) => {
   try {
     await dbClient.execute({
       sql: `UPDATE birth_records SET
-              lcr_number=?, date_of_registration=?, name_of_child=?, sex=?,
+              lcr_number=?, date_of_registration=?, page_no=?, book_no=?, name_of_child=?, sex=?,
               date_of_birth=?, place_of_birth=?, type_of_birth=?, "order"=?,
               mother_name=?, mother_age=?, mother_nationality=?, mother_religion=?,
               father_name=?, father_age=?, father_nationality=?, father_religion=?,
+              date_of_marriage_of_parents=?, place_of_marriage_of_parents=?,
               municipality_province=?, remarks=?
             WHERE id=?`,
       args: [
-        lcr_number || null, date_of_registration || null, name_of_child, sex || null,
+        lcr_number || null, date_of_registration || null, page_no || null, book_no || null, name_of_child, sex || null,
         date_of_birth || null, place_of_birth || null, type_of_birth || null, birthOrder || null,
         mother_name || null, mother_age || null, mother_nationality || null, mother_religion || null,
         father_name || null, father_age || null, father_nationality || null, father_religion || null,
+        date_of_marriage_of_parents || null, place_of_marriage_of_parents || null,
         municipality_province || null, remarks || null, id
       ]
     });
@@ -617,10 +754,11 @@ app.delete('/api/birth-records/:id', authenticate, async (req, res) => {
 // POST /api/birth-records
 app.post('/api/birth-records', authenticate, async (req, res) => {
   const {
-    lcr_number, date_of_registration, name_of_child, sex,
+    lcr_number, date_of_registration, page_no, book_no, name_of_child, sex,
     date_of_birth, place_of_birth, type_of_birth, order: birthOrder,
     mother_name, mother_age, mother_nationality, mother_religion,
     father_name, father_age, father_nationality, father_religion,
+    date_of_marriage_of_parents, place_of_marriage_of_parents,
     municipality_province, remarks
   } = req.body;
 
@@ -631,15 +769,17 @@ app.post('/api/birth-records', authenticate, async (req, res) => {
   try {
     const result = await dbClient.execute({
       sql: `INSERT INTO birth_records
-              (lcr_number, date_of_registration, name_of_child, sex, date_of_birth, place_of_birth, type_of_birth, "order",
+              (lcr_number, date_of_registration, page_no, book_no, name_of_child, sex, date_of_birth, place_of_birth, type_of_birth, "order",
                mother_name, mother_age, mother_nationality, mother_religion,
-               father_name, father_age, father_nationality, father_religion, municipality_province, remarks, created_by)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+               father_name, father_age, father_nationality, father_religion,
+               date_of_marriage_of_parents, place_of_marriage_of_parents, municipality_province, remarks, created_by)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       args: [
-        lcr_number || null, date_of_registration || null, name_of_child, sex || null,
+        lcr_number || null, date_of_registration || null, page_no || null, book_no || null, name_of_child, sex || null,
         date_of_birth || null, place_of_birth || null, type_of_birth || null, birthOrder || null,
         mother_name || null, mother_age || null, mother_nationality || null, mother_religion || null,
         father_name || null, father_age || null, father_nationality || null, father_religion || null,
+        date_of_marriage_of_parents || null, place_of_marriage_of_parents || null,
         municipality_province || null, remarks || null, req.user.id
       ]
     });
@@ -762,6 +902,56 @@ app.post('/api/death-records', authenticate, async (req, res) => {
 
     const newRecord = (await dbClient.execute({
       sql: 'SELECT * FROM death_records WHERE id = ?',
+      args: [Number(result.lastInsertRowid)]
+    })).rows[0];
+
+    res.status(201).json(newRecord);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// Routes: Form 1A Generated Records
+// ─────────────────────────────────────────────
+
+// GET /api/form1a-records
+app.get('/api/form1a-records', authenticate, async (req, res) => {
+  try {
+    const result = await dbClient.execute(`
+      SELECT f.*, b.name_of_child, b.lcr_number as record_lcr_number 
+      FROM form1a_records f
+      LEFT JOIN birth_records b ON f.birth_record_id = b.id
+      ORDER BY f.created_at DESC
+      LIMIT 100
+    `);
+    res.json({ records: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/form1a-records
+app.post('/api/form1a-records', authenticate, async (req, res) => {
+  const {
+    birth_record_id, requestee, purpose, prn, verified_by,
+    mcr_name, amount_paid, or_number, date_paid, generated_date
+  } = req.body;
+
+  try {
+    const result = await dbClient.execute({
+      sql: `INSERT INTO form1a_records
+              (birth_record_id, requestee, purpose, prn, verified_by, mcr_name, amount_paid, or_number, date_paid, generated_date)
+            VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      args: [
+        birth_record_id || null, requestee || null, purpose || null, prn || null,
+        verified_by || null, mcr_name || null, amount_paid || null,
+        or_number || null, date_paid || null, generated_date || null
+      ]
+    });
+
+    const newRecord = (await dbClient.execute({
+      sql: 'SELECT * FROM form1a_records WHERE id = ?',
       args: [Number(result.lastInsertRowid)]
     })).rows[0];
 

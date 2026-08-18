@@ -464,15 +464,18 @@ button {
 .btn-primary {
   background: var(--accent-primary-gradient);
   color: white;
-  padding: 0 24px;
-  border-radius: 14px;
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 12px;
   font-weight: 700;
-  font-size: 0.92rem;
-  display: flex;
+  font-size: 0.9rem;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   box-shadow: 0 4px 14px var(--accent-glow);
   transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 
 .btn-primary:hover {
@@ -1029,23 +1032,31 @@ textarea.form-input-control {
 }
 
 .modal-footer {
-  padding: 18px 28px;
+  padding: 16px 28px;
   border-top: 1px solid var(--card-border);
   background: rgba(0, 0, 0, 0.15);
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .btn-secondary {
   background: var(--tab-bg);
   border: 1px solid var(--card-border);
   color: var(--text-main);
-  padding: 10px 20px;
-  border-radius: 10px;
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 12px;
   font-weight: 600;
   font-size: 0.88rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   transition: all 0.15s ease;
+  box-sizing: border-box;
 }
 
 .btn-secondary:hover {
