@@ -807,11 +807,10 @@ function Generate1AModal({ serverUrl, token, record, employees, mcr, mcrDesignat
   .closing-para { margin-left: 36pt; text-align: justify; margin-top: 18px; margin-bottom: 32px; font-size: 11.5pt; line-height: 1.7; }
   .closing-para .hl { font-weight: bold; text-decoration: underline; }
   .sig-section { margin-top: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
-  .sig-left { min-width: 220pt; }
-  .sig-right { text-align: center; min-width: 190pt; }
-  .sig-label { font-size: 11pt; margin-bottom: 36pt; }
-  .sig-name { font-weight: bold; text-transform: uppercase; font-size: 11pt; border-top: 1px solid #000; padding-top: 3px; display: inline-block; min-width: 160pt; text-align: center; }
-  .sig-desig { font-size: 10pt; text-align: center; }
+  .sig-block { display: inline-block; min-width: 200pt; text-align: center; }
+  .sig-label { font-size: 11pt; margin-bottom: 36pt; text-align: left; }
+  .sig-name { font-weight: bold; text-transform: uppercase; font-size: 11pt; border-top: 1px solid #000; padding-top: 3px; width: 100%; display: block; text-align: center; }
+  .sig-desig { font-size: 10pt; text-align: center; display: block; margin-top: 2px; }
   .payment-section { margin-top: 28px; font-size: 11pt; line-height: 1.8; }
   .note { margin-top: 18px; font-size: 10pt; font-style: italic; }
   .note span { font-weight: bold; }
@@ -868,14 +867,14 @@ function Generate1AModal({ serverUrl, token, record, employees, mcr, mcrDesignat
   </div>
 
   <div class="sig-section">
-    <div class="sig-left">
+    <div>
       <div class="sig-label">Verified by:</div>
-      <div style="margin-top:4pt;">
+      <div class="sig-block">
         <div class="sig-name">${d.verifiedByName || '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'}</div>
         <div class="sig-desig">${d.verifiedByDesig || ''}</div>
       </div>
     </div>
-    <div class="sig-right">
+    <div class="sig-block">
       <div class="sig-name">${d.mcrName || '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'}</div>
       <div class="sig-desig">Municipal Civil Registrar</div>
     </div>
