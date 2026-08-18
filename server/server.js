@@ -159,6 +159,28 @@ async function initDb() {
       );
     `);
 
+    await dbClient.execute(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+    `);
+
+    // Seed default settings passcode if it doesn't exist
+    const passcodeCheck = await dbClient.execute({
+      sql: 'SELECT value FROM settings WHERE key = ?',
+      args: ['settings_passcode']
+    });
+
+    if (passcodeCheck.rows.length === 0) {
+      await dbClient.execute({
+        sql: 'INSERT INTO settings (key, value) VALUES (?, ?)',
+        args: ['settings_passcode', '1234']
+      });
+      console.log('✅ Default settings passcode created (1234).');
+    }
+
     // Seed default users if they don't exist
     const userCheck = await dbClient.execute({
       sql: 'SELECT id FROM users WHERE username = ?',
@@ -236,6 +258,61 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(UPLOADS_DIR));
+
+// ─────────────────────────────────────────────
+// Routes: Settings & Passcode
+// ─────────────────────────────────────────────
+
+// POST /api/settings/verify-passcode
+app.post('/api/settings/verify-passcode', authenticate, async (req, res) => {
+  const { passcode } = req.body;
+  if (!passcode) return res.status(400).json({ error: 'Passcode is required' });
+
+  try {
+    const result = await dbClient.execute({
+      sql: 'SELECT value FROM settings WHERE key = ?',
+      args: ['settings_passcode']
+    });
+    const storedPasscode = result.rows[0]?.value || '1234';
+
+    if (String(passcode).trim() === String(storedPasscode).trim()) {
+      res.json({ success: true, message: 'Passcode verified' });
+    } else {
+      res.status(401).json({ error: 'Incorrect passcode' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/settings/passcode
+app.put('/api/settings/passcode', authenticate, async (req, res) => {
+  const { currentPasscode, newPasscode } = req.body;
+  if (!currentPasscode || !newPasscode) {
+    return res.status(400).json({ error: 'Current passcode and new passcode are required' });
+  }
+
+  try {
+    const result = await dbClient.execute({
+      sql: 'SELECT value FROM settings WHERE key = ?',
+      args: ['settings_passcode']
+    });
+    const storedPasscode = result.rows[0]?.value || '1234';
+
+    if (String(currentPasscode).trim() !== String(storedPasscode).trim()) {
+      return res.status(401).json({ error: 'Current passcode is incorrect' });
+    }
+
+    await dbClient.execute({
+      sql: 'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime(\'now\')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at',
+      args: ['settings_passcode', String(newPasscode).trim()]
+    });
+
+    res.json({ success: true, message: 'Passcode updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ─────────────────────────────────────────────
 // Routes: Auth
@@ -343,7 +420,7 @@ app.get('/api/search', authenticate, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// Routes: Records
+// Routes: General Records (PUT & DELETE included)
 // ─────────────────────────────────────────────
 
 // GET /api/records
@@ -386,29 +463,38 @@ app.get('/api/records', authenticate, async (req, res) => {
   }
 });
 
-// GET /api/records/:id
-app.get('/api/records/:id', authenticate, async (req, res) => {
-  try {
-    const result = await dbClient.execute({
-      sql: 'SELECT * FROM records WHERE id = ?',
-      args: [req.params.id]
-    });
-    
-    const record = result.rows[0];
+// PUT /api/records/:id
+app.put('/api/records/:id', authenticate, upload.single('image'), async (req, res) => {
+  const { name, serialNumber, pageNumber, category, description, tags, date } = req.body;
+  const id = req.params.id;
 
-    if (!record) {
-      return res.status(404).json({ error: 'Record not found' });
+  try {
+    let sql = `UPDATE records SET name=?, serial_number=?, page_number=?, category=?, description=?, tags=?, date=?`;
+    const params = [name, serialNumber || null, pageNumber || null, category || null, description || null, tags || null, date || null];
+
+    if (req.file) {
+      sql += `, image_filename=?`;
+      params.push(req.file.filename);
     }
 
-    const host = req.get('host');
-    const protocol = req.protocol;
+    sql += ` WHERE id=?`;
+    params.push(id);
 
-    res.json({
-      ...record,
-      imageUrl: record.image_filename
-        ? `${protocol}://${host}/uploads/${record.image_filename}`
-        : null,
+    await dbClient.execute({ sql, args: params });
+    res.json({ success: true, message: 'Record updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/records/:id
+app.delete('/api/records/:id', authenticate, async (req, res) => {
+  try {
+    await dbClient.execute({
+      sql: 'DELETE FROM records WHERE id = ?',
+      args: [req.params.id]
     });
+    res.json({ success: true, message: 'Record deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -453,7 +539,7 @@ app.post('/api/records', authenticate, upload.single('image'), async (req, res) 
 });
 
 // ─────────────────────────────────────────────
-// Routes: Birth Records
+// Routes: Birth Records (PUT & DELETE included)
 // ─────────────────────────────────────────────
 
 // GET /api/birth-records
@@ -474,6 +560,55 @@ app.get('/api/birth-records', authenticate, async (req, res) => {
   try {
     const result = await dbClient.execute({ sql, args: params });
     res.json({ records: result.rows, total: result.rows.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/birth-records/:id
+app.put('/api/birth-records/:id', authenticate, async (req, res) => {
+  const id = req.params.id;
+  const {
+    lcr_number, date_of_registration, name_of_child, sex,
+    date_of_birth, place_of_birth, type_of_birth, order: birthOrder,
+    mother_name, mother_age, mother_nationality, mother_religion,
+    father_name, father_age, father_nationality, father_religion,
+    municipality_province, remarks
+  } = req.body;
+
+  if (!name_of_child) return res.status(400).json({ error: 'Name of child is required' });
+
+  try {
+    await dbClient.execute({
+      sql: `UPDATE birth_records SET
+              lcr_number=?, date_of_registration=?, name_of_child=?, sex=?,
+              date_of_birth=?, place_of_birth=?, type_of_birth=?, "order"=?,
+              mother_name=?, mother_age=?, mother_nationality=?, mother_religion=?,
+              father_name=?, father_age=?, father_nationality=?, father_religion=?,
+              municipality_province=?, remarks=?
+            WHERE id=?`,
+      args: [
+        lcr_number || null, date_of_registration || null, name_of_child, sex || null,
+        date_of_birth || null, place_of_birth || null, type_of_birth || null, birthOrder || null,
+        mother_name || null, mother_age || null, mother_nationality || null, mother_religion || null,
+        father_name || null, father_age || null, father_nationality || null, father_religion || null,
+        municipality_province || null, remarks || null, id
+      ]
+    });
+    res.json({ success: true, message: 'Birth record updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/birth-records/:id
+app.delete('/api/birth-records/:id', authenticate, async (req, res) => {
+  try {
+    await dbClient.execute({
+      sql: 'DELETE FROM birth_records WHERE id = ?',
+      args: [req.params.id]
+    });
+    res.json({ success: true, message: 'Birth record deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -521,7 +656,7 @@ app.post('/api/birth-records', authenticate, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// Routes: Death Records
+// Routes: Death Records (PUT & DELETE included)
 // ─────────────────────────────────────────────
 
 // GET /api/death-records
@@ -542,6 +677,54 @@ app.get('/api/death-records', authenticate, async (req, res) => {
   try {
     const result = await dbClient.execute({ sql, args: params });
     res.json({ records: result.rows, total: result.rows.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/death-records/:id
+app.put('/api/death-records/:id', authenticate, async (req, res) => {
+  const id = req.params.id;
+  const {
+    lcr_number, date_of_registration, name_of_deceased, sex,
+    date_of_death, place_of_death, cause_of_death, age_at_death,
+    civil_status, nationality, religion, occupation,
+    mother_name, father_name,
+    informant_name, informant_relationship, remarks
+  } = req.body;
+
+  if (!name_of_deceased) return res.status(400).json({ error: 'Name of deceased is required' });
+
+  try {
+    await dbClient.execute({
+      sql: `UPDATE death_records SET
+              lcr_number=?, date_of_registration=?, name_of_deceased=?, sex=?,
+              date_of_death=?, place_of_death=?, cause_of_death=?, age_at_death=?,
+              civil_status=?, nationality=?, religion=?, occupation=?,
+              mother_name=?, father_name=?, informant_name=?, informant_relationship=?, remarks=?
+            WHERE id=?`,
+      args: [
+        lcr_number || null, date_of_registration || null, name_of_deceased, sex || null,
+        date_of_death || null, place_of_death || null, cause_of_death || null, age_at_death || null,
+        civil_status || null, nationality || null, religion || null, occupation || null,
+        mother_name || null, father_name || null,
+        informant_name || null, informant_relationship || null, remarks || null, id
+      ]
+    });
+    res.json({ success: true, message: 'Death record updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/death-records/:id
+app.delete('/api/death-records/:id', authenticate, async (req, res) => {
+  try {
+    await dbClient.execute({
+      sql: 'DELETE FROM death_records WHERE id = ?',
+      args: [req.params.id]
+    });
+    res.json({ success: true, message: 'Death record deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

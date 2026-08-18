@@ -56,6 +56,171 @@ function Modal({ title, icon, onClose, children }) {
   );
 }
 
+// ─── Edit Record Form Modal ───────────────────────────────────────────────────
+function EditRecordModal({ serverUrl, token, record, recordType, onSuccess, onClose }) {
+  const [form, setForm] = useState(() => ({ ...record }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handle = e => {
+    const { name, value, type } = e.target;
+    const val = type === 'text' || e.target.tagName === 'TEXTAREA' ? value.toUpperCase() : value;
+    setForm(prev => ({ ...prev, [name]: val }));
+  };
+
+  const submit = async e => {
+    e.preventDefault();
+    setError('');
+    setSaving(true);
+    try {
+      let endpoint = 'records';
+      if (recordType === 'birth') endpoint = 'birth-records';
+      if (recordType === 'death') endpoint = 'death-records';
+
+      const res = await fetch(`${serverUrl}/api/${endpoint}/${record.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(form),
+      });
+      const data = await readJsonResponse(res);
+      if (!res.ok) throw new Error(data.error || 'Failed to update record');
+      onSuccess('Record updated successfully!');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={`Edit ${recordType === 'birth' ? 'Birth' : recordType === 'death' ? 'Death' : 'General'} Record #${record.id}`} icon="✏️" onClose={onClose}>
+      <form onSubmit={submit} style={{ display: 'contents' }}>
+        <div className="modal-body">
+          {error && (
+            <div style={{ padding: '10px 14px', background: 'rgba(244,63,94,0.15)', border: '1px solid rgba(244,63,94,0.3)', borderRadius: '10px', color: '#f43f5e', marginBottom: '16px', fontSize: '0.88rem' }}>
+              ⚠️ {error}
+            </div>
+          )}
+
+          {recordType === 'birth' && (
+            <div className="form-grid">
+              <div className="form-field-group full-width">
+                <label className="form-label">Name of Child</label>
+                <input className="form-input-control" name="name_of_child" value={form.name_of_child || ''} onChange={handle} required />
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">Sex</label>
+                <select className="form-input-control" name="sex" value={form.sex || ''} onChange={handle}>
+                  <option value="">— Select Sex —</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">LCR Number</label>
+                <input className="form-input-control" name="lcr_number" value={form.lcr_number || ''} onChange={handle} />
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">Date of Registration</label>
+                <input className="form-input-control" type="date" name="date_of_registration" value={form.date_of_registration || ''} onChange={handle} />
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">Date of Birth</label>
+                <input className="form-input-control" type="date" name="date_of_birth" value={form.date_of_birth || ''} onChange={handle} />
+              </div>
+              <div className="form-field-group full-width">
+                <label className="form-label">Place of Birth</label>
+                <input className="form-input-control" name="place_of_birth" value={form.place_of_birth || ''} onChange={handle} />
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">Mother's Name</label>
+                <input className="form-input-control" name="mother_name" value={form.mother_name || ''} onChange={handle} />
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">Father's Name</label>
+                <input className="form-input-control" name="father_name" value={form.father_name || ''} onChange={handle} />
+              </div>
+              <div className="form-field-group full-width">
+                <label className="form-label">Remarks</label>
+                <textarea className="form-input-control" name="remarks" value={form.remarks || ''} onChange={handle} rows={3} />
+              </div>
+            </div>
+          )}
+
+          {recordType === 'death' && (
+            <div className="form-grid">
+              <div className="form-field-group full-width">
+                <label className="form-label">Name of Deceased</label>
+                <input className="form-input-control" name="name_of_deceased" value={form.name_of_deceased || ''} onChange={handle} required />
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">Sex</label>
+                <select className="form-input-control" name="sex" value={form.sex || ''} onChange={handle}>
+                  <option value="">— Select Sex —</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">Age at Death</label>
+                <input className="form-input-control" name="age_at_death" value={form.age_at_death || ''} onChange={handle} />
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">LCR Number</label>
+                <input className="form-input-control" name="lcr_number" value={form.lcr_number || ''} onChange={handle} />
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">Date of Death</label>
+                <input className="form-input-control" type="date" name="date_of_death" value={form.date_of_death || ''} onChange={handle} />
+              </div>
+              <div className="form-field-group full-width">
+                <label className="form-label">Cause of Death</label>
+                <input className="form-input-control" name="cause_of_death" value={form.cause_of_death || ''} onChange={handle} />
+              </div>
+              <div className="form-field-group full-width">
+                <label className="form-label">Place of Death</label>
+                <input className="form-input-control" name="place_of_death" value={form.place_of_death || ''} onChange={handle} />
+              </div>
+              <div className="form-field-group full-width">
+                <label className="form-label">Remarks</label>
+                <textarea className="form-input-control" name="remarks" value={form.remarks || ''} onChange={handle} rows={3} />
+              </div>
+            </div>
+          )}
+
+          {recordType === 'general' && (
+            <div className="form-grid">
+              <div className="form-field-group full-width">
+                <label className="form-label">Document Name</label>
+                <input className="form-input-control" name="name" value={form.name || ''} onChange={handle} required />
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">Serial Number</label>
+                <input className="form-input-control" name="serial_number" value={form.serial_number || ''} onChange={handle} />
+              </div>
+              <div className="form-field-group">
+                <label className="form-label">Category</label>
+                <input className="form-input-control" name="category" value={form.category || ''} onChange={handle} />
+              </div>
+              <div className="form-field-group full-width">
+                <label className="form-label">Description</label>
+                <textarea className="form-input-control" name="description" value={form.description || ''} onChange={handle} rows={3} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn-primary" disabled={saving}>
+            {saving ? 'Saving Changes…' : '💾 Save Changes'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 // ─── Tabbed Birth Registration Form Modal ──────────────────────────────────────
 function BirthFormModal({ serverUrl, token, onSuccess, onClose }) {
   const [form, setForm] = useState(emptyBirth());
@@ -453,6 +618,22 @@ export default function App() {
   const [token, setToken] = useState('');
   const [user, setUser] = useState(null);
 
+  // Active View: 'search' | 'settings'
+  const [activePage, setActivePage] = useState('search');
+
+  // Passcode Security States
+  const [isPasscodeUnlocked, setIsPasscodeUnlocked] = useState(false);
+  const [passcodeInput, setPasscodeInput] = useState('');
+  const [passcodeError, setPasscodeError] = useState('');
+  const [verifyingPasscode, setVerifyingPasscode] = useState(false);
+
+  // Passcode Change States
+  const [currentPass, setCurrentPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [passChangeStatus, setPassChangeStatus] = useState('');
+  const [passChangeError, setPassChangeError] = useState('');
+
   // Search & Navigation States
   const [search, setSearch] = useState('');
   const [records, setRecords] = useState([]);
@@ -464,11 +645,12 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState('general');
   // View mode: 'grid' | 'table'
   const [viewMode, setViewMode] = useState('grid');
-  // Active detail sub-tab: 'overview' | 'family' | 'document' | 'raw'
+  // Active detail sub-tab: 'overview' | 'family' | 'document'
   const [detailTab, setDetailTab] = useState('overview');
 
-  // Modals state: null | 'birth' | 'death' | image URL
+  // Modals state: null | 'birth' | 'death' | 'edit'
   const [modalMode, setModalMode] = useState(null);
+  const [editingRecord, setEditingRecord] = useState(null);
   const [zoomedImage, setZoomedImage] = useState(null);
   const [imageRotation, setImageRotation] = useState(0);
   const [toastMessage, setToastMessage] = useState('');
@@ -520,11 +702,7 @@ export default function App() {
 
       const loaded = Array.isArray(data.records) ? data.records : [];
       setRecords(loaded);
-      if (loaded.length > 0) {
-        setSelectedRecord(loaded[0]);
-      } else {
-        setSelectedRecord(null);
-      }
+      setSelectedRecord(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to fetch records';
       setError(
@@ -538,11 +716,11 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (token) {
+    if (token && activePage === 'search') {
       const baseUrl = serverUrl.trim().replace(/\/$/, '');
       fetchRecords(baseUrl, token, search.trim(), currentTab);
     }
-  }, [currentTab]);
+  }, [currentTab, activePage]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -584,14 +762,95 @@ export default function App() {
     setUser(null);
     setRecords([]);
     setSelectedRecord(null);
+    setIsPasscodeUnlocked(false);
   };
 
   const handleFormSuccess = (msg) => {
     setModalMode(null);
+    setEditingRecord(null);
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 4000);
     const baseUrl = serverUrl.trim().replace(/\/$/, '');
     fetchRecords(baseUrl, token, search.trim(), currentTab);
+  };
+
+  // ─── Settings Passcode Verification ──────────────────────────────────────────
+  const verifyPasscode = async (e) => {
+    e.preventDefault();
+    setPasscodeError('');
+    setVerifyingPasscode(true);
+    try {
+      const baseUrl = serverUrl.trim().replace(/\/$/, '');
+      const res = await fetch(`${baseUrl}/api/settings/verify-passcode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ passcode: passcodeInput }),
+      });
+      const data = await readJsonResponse(res);
+      if (!res.ok) throw new Error(data.error || 'Incorrect passcode');
+      setIsPasscodeUnlocked(true);
+      setPasscodeInput('');
+    } catch (err) {
+      setPasscodeError(err.message);
+    } finally {
+      setVerifyingPasscode(false);
+    }
+  };
+
+  // ─── Change Passcode Handler ──────────────────────────────────────────────────
+  const handleChangePasscode = async (e) => {
+    e.preventDefault();
+    setPassChangeError('');
+    setPassChangeStatus('');
+    if (newPass !== confirmPass) {
+      setPassChangeError('New passcode and confirmation do not match');
+      return;
+    }
+
+    try {
+      const baseUrl = serverUrl.trim().replace(/\/$/, '');
+      const res = await fetch(`${baseUrl}/api/settings/passcode`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ currentPasscode: currentPass, newPasscode: newPass }),
+      });
+      const data = await readJsonResponse(res);
+      if (!res.ok) throw new Error(data.error || 'Failed to update passcode');
+      setPassChangeStatus('Passcode updated successfully in database!');
+      setCurrentPass('');
+      setNewPass('');
+      setConfirmPass('');
+    } catch (err) {
+      setPassChangeError(err.message);
+    }
+  };
+
+  // ─── Record Deletion Handler ──────────────────────────────────────────────────
+  const handleDeleteRecord = async (recordToDelete) => {
+    if (!window.confirm(`Are you sure you want to delete this ${currentTab} record? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const baseUrl = serverUrl.trim().replace(/\/$/, '');
+      let endpoint = 'records';
+      if (currentTab === 'birth') endpoint = 'birth-records';
+      if (currentTab === 'death') endpoint = 'death-records';
+
+      const res = await fetch(`${baseUrl}/api/${endpoint}/${recordToDelete.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await readJsonResponse(res);
+      if (!res.ok) throw new Error(data.error || 'Failed to delete record');
+
+      setSelectedRecord(null);
+      setToastMessage('Record deleted successfully');
+      setTimeout(() => setToastMessage(''), 4000);
+      fetchRecords(baseUrl, token, search.trim(), currentTab);
+    } catch (err) {
+      alert(`Error deleting record: ${err.message}`);
+    }
   };
 
   const baseUrl = serverUrl.trim().replace(/\/$/, '');
@@ -661,7 +920,7 @@ export default function App() {
     );
   }
 
-  // ─── MAIN PORTAL VIEW (Search Page + Modals + Tabbed Detail Divs) ───────────
+  // ─── MAIN PORTAL VIEW (Search Page + Settings + Modals) ────────────────────────
   return (
     <div className="app-shell">
       {/* Top Navbar */}
@@ -675,8 +934,17 @@ export default function App() {
         </div>
 
         <nav className="nav-menu">
-          <button className="nav-link active">
+          <button
+            className={`nav-link ${activePage === 'search' ? 'active' : ''}`}
+            onClick={() => setActivePage('search')}
+          >
             <span>🔍</span> Search Records
+          </button>
+          <button
+            className={`nav-link ${activePage === 'settings' ? 'active' : ''}`}
+            onClick={() => setActivePage('settings')}
+          >
+            <span>⚙️</span> Settings & Management
           </button>
         </nav>
 
@@ -708,402 +976,559 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="main-container">
-        {/* Search Page Header */}
-        <section className="search-header-hero">
-          <div className="search-hero-top">
-            <div className="page-headline">
-              <h1>Search & Query Civil Records</h1>
-              <p>Search through indexed birth registrations, death records, and archival documents.</p>
-            </div>
-          </div>
-
-          <form onSubmit={handleSearchSubmit} className="search-bar-form">
-            <div className="search-input-group">
-              <span className="search-icon-inside">🔍</span>
-              <input
-                className="search-input-field"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={
-                  currentTab === 'general' ? 'Search by full name, serial number, tag, or category...' :
-                  currentTab === 'birth' ? 'Search child name, LCR #, place of birth, or mother/father name...' :
-                  'Search deceased name, LCR #, cause of death, or place of death...'
-                }
-              />
-            </div>
-            <button type="submit" className="btn-primary" disabled={isLoading}>
-              {isLoading ? 'Searching…' : 'Search Database'}
-            </button>
-          </form>
-
-          <div className="filter-tabs-row">
-            <div className="category-tabs">
-              <button
-                className={`cat-tab ${currentTab === 'general' ? 'active' : ''}`}
-                onClick={() => setCurrentTab('general')}
-              >
-                📁 General Uploads
-              </button>
-              <button
-                className={`cat-tab ${currentTab === 'birth' ? 'active' : ''}`}
-                onClick={() => setCurrentTab('birth')}
-              >
-                🍼 Birth Registrations
-              </button>
-              <button
-                className={`cat-tab ${currentTab === 'death' ? 'active' : ''}`}
-                onClick={() => setCurrentTab('death')}
-              >
-                🕊️ Death Registrations
-              </button>
-            </div>
-
-            <div className="view-controls">
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-subtle)', fontWeight: 600 }}>VIEW:</span>
-              <button
-                className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                onClick={() => setViewMode('grid')}
-              >
-                ▦ Grid
-              </button>
-              <button
-                className={`view-toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
-                onClick={() => setViewMode('table')}
-              >
-                ☰ Table
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* Results & Tabbed Detail Split Panel */}
-        <section className={`results-split-layout ${!selectedRecord ? 'full-width' : ''}`}>
-          {/* Records List Container */}
-          <div className="records-container-card">
-            <div className="records-card-header">
-              <h3>
-                {currentTab === 'general' ? 'Archival Uploads' : currentTab === 'birth' ? 'Birth Register' : 'Death Register'}
-              </h3>
-              <span className="results-count-badge">{records.length} records found</span>
-            </div>
-
-            {isLoading ? (
-              <div className="state-box">
-                <div className="state-icon">⏳</div>
-                <p>Querying registry database...</p>
+        {activePage === 'search' ? (
+          <>
+            {/* Search Page Header */}
+            <section className="search-header-hero">
+              <div className="search-hero-top">
+                <div className="page-headline">
+                  <h1>Search & Query Civil Records</h1>
+                  <p>Search through indexed birth registrations, death records, and archival documents.</p>
+                </div>
               </div>
-            ) : records.length === 0 ? (
-              <div className="state-box">
-                <div className="state-icon">📂</div>
-                <p>No matching records found.</p>
-                <span style={{ fontSize: '0.85rem' }}>Try clearing or adjusting your search query.</span>
+
+              <form onSubmit={handleSearchSubmit} className="search-bar-form">
+                <div className="search-input-group">
+                  <span className="search-icon-inside">🔍</span>
+                  <input
+                    className="search-input-field"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={
+                      currentTab === 'general' ? 'Search by full name, serial number, tag, or category...' :
+                      currentTab === 'birth' ? 'Search child name, LCR #, place of birth, or mother/father name...' :
+                      'Search deceased name, LCR #, cause of death, or place of death...'
+                    }
+                  />
+                </div>
+                <button type="submit" className="btn-primary" disabled={isLoading}>
+                  {isLoading ? 'Searching…' : 'Search Database'}
+                </button>
+              </form>
+
+              <div className="filter-tabs-row">
+                <div className="category-tabs">
+                  <button
+                    className={`cat-tab ${currentTab === 'general' ? 'active' : ''}`}
+                    onClick={() => setCurrentTab('general')}
+                  >
+                    📁 General Uploads
+                  </button>
+                  <button
+                    className={`cat-tab ${currentTab === 'birth' ? 'active' : ''}`}
+                    onClick={() => setCurrentTab('birth')}
+                  >
+                    🍼 Birth Registrations
+                  </button>
+                  <button
+                    className={`cat-tab ${currentTab === 'death' ? 'active' : ''}`}
+                    onClick={() => setCurrentTab('death')}
+                  >
+                    🕊️ Death Registrations
+                  </button>
+                </div>
+
+                <div className="view-controls">
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-subtle)', fontWeight: 600 }}>VIEW:</span>
+                  <button
+                    className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                    onClick={() => setViewMode('grid')}
+                  >
+                    ▦ Grid
+                  </button>
+                  <button
+                    className={`view-toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
+                    onClick={() => setViewMode('table')}
+                  >
+                    ☰ Table
+                  </button>
+                </div>
               </div>
-            ) : viewMode === 'grid' ? (
-              <div className="records-grid-view">
-                {records.map((rec) => {
-                  const name = currentTab === 'general' ? rec.name : currentTab === 'birth' ? rec.name_of_child : rec.name_of_deceased;
-                  const isSelected = selectedRecord?.id === rec.id;
-                  const dateVal = currentTab === 'general' ? rec.date : currentTab === 'birth' ? rec.date_of_birth : rec.date_of_death;
+            </section>
 
-                  return (
-                    <button
-                      key={rec.id}
-                      className={`record-card-item ${isSelected ? 'selected' : ''}`}
-                      onClick={() => setSelectedRecord(rec)}
-                    >
-                      <div className="record-item-top">
-                        <span className="record-item-name">{name || 'Unnamed Record'}</span>
-                        <span className={`type-pill ${currentTab}`}>
-                          {currentTab === 'general' ? (rec.category || 'General') : currentTab.toUpperCase()}
-                        </span>
-                      </div>
+            {/* Results Grid / Table Layout */}
+            <section className="results-split-layout full-width">
+              <div className="records-container-card">
+                <div className="records-card-header">
+                  <h3>
+                    {currentTab === 'general' ? 'Archival Uploads' : currentTab === 'birth' ? 'Birth Register' : 'Death Register'}
+                  </h3>
+                  <span className="results-count-badge">{records.length} records found</span>
+                </div>
 
-                      <div className="record-meta-line">
-                        <span>🆔</span>
-                        <span>{currentTab === 'general' ? (rec.serial_number || `ID #${rec.id}`) : `LCR: ${rec.lcr_number || 'N/A'}`}</span>
-                      </div>
-
-                      <div className="record-card-footer">
-                        <span>📅 {dateVal ? new Date(dateVal).toLocaleDateString() : 'No date'}</span>
-                        <span>View Details ➔</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="table-wrapper">
-                <table className="records-table">
-                  <thead>
-                    <tr>
-                      <th>Name / Record Title</th>
-                      <th>Reference #</th>
-                      <th>Category / Status</th>
-                      <th>Date</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                {isLoading ? (
+                  <div className="state-box">
+                    <div className="state-icon">⏳</div>
+                    <p>Querying registry database...</p>
+                  </div>
+                ) : records.length === 0 ? (
+                  <div className="state-box">
+                    <div className="state-icon">📂</div>
+                    <p>No matching records found.</p>
+                    <span style={{ fontSize: '0.85rem' }}>Try clearing or adjusting your search query.</span>
+                  </div>
+                ) : viewMode === 'grid' ? (
+                  <div className="records-grid-view">
                     {records.map((rec) => {
                       const name = currentTab === 'general' ? rec.name : currentTab === 'birth' ? rec.name_of_child : rec.name_of_deceased;
-                      const refNum = currentTab === 'general' ? rec.serial_number : rec.lcr_number;
-                      const dateVal = currentTab === 'general' ? rec.date : currentTab === 'birth' ? rec.date_of_birth : rec.date_of_death;
                       const isSelected = selectedRecord?.id === rec.id;
+                      const dateVal = currentTab === 'general' ? rec.date : currentTab === 'birth' ? rec.date_of_birth : rec.date_of_death;
 
                       return (
-                        <tr
+                        <button
                           key={rec.id}
-                          className={isSelected ? 'selected' : ''}
-                          onClick={() => setSelectedRecord(rec)}
+                          className={`record-card-item ${isSelected ? 'selected' : ''}`}
+                          onClick={() => {
+                            setSelectedRecord(rec);
+                            setDetailTab('overview');
+                          }}
                         >
-                          <td style={{ fontWeight: 700 }}>{name || '—'}</td>
-                          <td><code>{refNum || '—'}</code></td>
-                          <td>
+                          <div className="record-item-top">
+                            <span className="record-item-name">{name || 'Unnamed Record'}</span>
                             <span className={`type-pill ${currentTab}`}>
-                              {currentTab === 'general' ? (rec.category || 'General') : currentTab}
+                              {currentTab === 'general' ? (rec.category || 'General') : currentTab.toUpperCase()}
                             </span>
-                          </td>
-                          <td>{dateVal ? new Date(dateVal).toLocaleDateString() : '—'}</td>
-                          <td style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>Inspect ➔</td>
-                        </tr>
+                          </div>
+
+                          <div className="record-meta-line">
+                            <span>🆔</span>
+                            <span>{currentTab === 'general' ? (rec.serial_number || `ID #${rec.id}`) : `LCR: ${rec.lcr_number || 'N/A'}`}</span>
+                          </div>
+
+                          <div className="record-card-footer">
+                            <span>📅 {dateVal ? new Date(dateVal).toLocaleDateString() : 'No date'}</span>
+                            <span>View Complete Details ➔</span>
+                          </div>
+                        </button>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </div>
+                ) : (
+                  <div className="table-wrapper">
+                    <table className="records-table">
+                      <thead>
+                        <tr>
+                          <th>Name / Record Title</th>
+                          <th>Reference #</th>
+                          <th>Category / Status</th>
+                          <th>Date</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {records.map((rec) => {
+                          const name = currentTab === 'general' ? rec.name : currentTab === 'birth' ? rec.name_of_child : rec.name_of_deceased;
+                          const refNum = currentTab === 'general' ? rec.serial_number : rec.lcr_number;
+                          const dateVal = currentTab === 'general' ? rec.date : currentTab === 'birth' ? rec.date_of_birth : rec.date_of_death;
+                          const isSelected = selectedRecord?.id === rec.id;
+
+                          return (
+                            <tr
+                              key={rec.id}
+                              className={isSelected ? 'selected' : ''}
+                              onClick={() => {
+                                setSelectedRecord(rec);
+                                setDetailTab('overview');
+                              }}
+                            >
+                              <td style={{ fontWeight: 700 }}>{name || '—'}</td>
+                              <td><code>{refNum || '—'}</code></td>
+                              <td>
+                                <span className={`type-pill ${currentTab}`}>
+                                  {currentTab === 'general' ? (rec.category || 'General') : currentTab}
+                                </span>
+                              </td>
+                              <td>{dateVal ? new Date(dateVal).toLocaleDateString() : '—'}</td>
+                              <td style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>Inspect Record ➔</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </section>
+          </>
+        ) : (
+          /* ─── SETTINGS & MANAGEMENT PAGE ──────────────────────────────────────── */
+          <section style={{ maxWidth: '800px', margin: '0 auto', width: '100%', display: 'grid', gap: '24px' }}>
+            <div className="search-header-hero">
+              <div className="page-headline">
+                <h1>⚙️ Settings & System Security</h1>
+                <p>Modify passcode security saved in database, configure system settings, and manage record modifications.</p>
+              </div>
+            </div>
+
+            {!isPasscodeUnlocked ? (
+              <div className="auth-card-wrapper" style={{ margin: '0 auto', maxWidth: '460px', width: '100%' }}>
+                <div className="auth-header">
+                  <div className="brand-icon">🔒</div>
+                  <h2>Passcode Protected</h2>
+                  <p>Enter your 4-digit security passcode saved in database to unlock Settings</p>
+                </div>
+
+                <form onSubmit={verifyPasscode} style={{ display: 'grid', gap: '16px' }}>
+                  <div className="form-field-group">
+                    <label className="form-label">Database Passcode</label>
+                    <input
+                      className="form-input-control"
+                      type="password"
+                      value={passcodeInput}
+                      onChange={(e) => setPasscodeInput(e.target.value)}
+                      placeholder="Enter Passcode (Default: 1234)"
+                      required
+                      autoFocus
+                    />
+                  </div>
+
+                  {passcodeError && (
+                    <div style={{ padding: '10px 14px', background: 'rgba(244,63,94,0.15)', border: '1px solid rgba(244,63,94,0.3)', borderRadius: '10px', color: '#f43f5e', fontSize: '0.88rem' }}>
+                      ⚠️ {passcodeError}
+                    </div>
+                  )}
+
+                  <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px' }} disabled={verifyingPasscode}>
+                    {verifyingPasscode ? 'Verifying...' : 'Unlock Settings 🔓'}
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: '20px' }}>
+                <div style={{ padding: '12px 20px', background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.4)', borderRadius: '14px', color: '#10b981', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>🔓 Settings Unlocked via Database Security Passcode</span>
+                  <button className="btn-secondary" style={{ padding: '4px 12px', fontSize: '0.8rem' }} onClick={() => setIsPasscodeUnlocked(false)}>Lock Settings</button>
+                </div>
+
+                {/* Change Passcode Card */}
+                <div className="records-container-card">
+                  <div className="records-card-header">
+                    <h3>🔑 Change System Passcode in Database</h3>
+                  </div>
+                  <form onSubmit={handleChangePasscode} style={{ display: 'grid', gap: '16px', marginTop: '12px' }}>
+                    <div className="form-field-group">
+                      <label className="form-label">Current Passcode</label>
+                      <input
+                        className="form-input-control"
+                        type="password"
+                        value={currentPass}
+                        onChange={(e) => setCurrentPass(e.target.value)}
+                        placeholder="Enter current passcode"
+                        required
+                      />
+                    </div>
+                    <div className="form-grid">
+                      <div className="form-field-group">
+                        <label className="form-label">New Passcode</label>
+                        <input
+                          className="form-input-control"
+                          type="password"
+                          value={newPass}
+                          onChange={(e) => setNewPass(e.target.value)}
+                          placeholder="Enter new passcode"
+                          required
+                        />
+                      </div>
+                      <div className="form-field-group">
+                        <label className="form-label">Confirm New Passcode</label>
+                        <input
+                          className="form-input-control"
+                          type="password"
+                          value={confirmPass}
+                          onChange={(e) => setConfirmPass(e.target.value)}
+                          placeholder="Confirm new passcode"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {passChangeError && (
+                      <div style={{ padding: '10px 14px', background: 'rgba(244,63,94,0.15)', border: '1px solid rgba(244,63,94,0.3)', borderRadius: '10px', color: '#f43f5e', fontSize: '0.88rem' }}>
+                        ⚠️ {passChangeError}
+                      </div>
+                    )}
+
+                    {passChangeStatus && (
+                      <div style={{ padding: '10px 14px', background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: '10px', color: '#10b981', fontSize: '0.88rem' }}>
+                        ✨ {passChangeStatus}
+                      </div>
+                    )}
+
+                    <button type="submit" className="btn-primary" style={{ justifySelf: 'flex-start' }}>
+                      Update Database Passcode
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+      </main>
+
+      {/* Record Details Display Modal (with Edit & Delete Buttons) */}
+      {selectedRecord && (
+        <Modal
+          title={currentTab === 'general' ? selectedRecord.name : currentTab === 'birth' ? selectedRecord.name_of_child : selectedRecord.name_of_deceased}
+          icon={currentTab === 'birth' ? '🍼' : currentTab === 'death' ? '🕊️' : '📄'}
+          onClose={() => setSelectedRecord(null)}
+        >
+          <div className="modal-form-tabs">
+            <button
+              className={`modal-tab-item ${detailTab === 'overview' ? 'active' : ''}`}
+              onClick={() => setDetailTab('overview')}
+            >
+              1. Complete Record Details
+            </button>
+            {currentTab !== 'general' && (
+              <button
+                className={`modal-tab-item ${detailTab === 'family' ? 'active' : ''}`}
+                onClick={() => setDetailTab('family')}
+              >
+                2. Family & Informant
+              </button>
+            )}
+            {currentTab === 'general' && (
+              <button
+                className={`modal-tab-item ${detailTab === 'document' ? 'active' : ''}`}
+                onClick={() => setDetailTab('document')}
+              >
+                2. Document Image
+              </button>
+            )}
+          </div>
+
+          <div className="modal-body">
+            {detailTab === 'overview' && (
+              <div>
+                {currentTab === 'general' && (
+                  <div className="form-grid">
+                    <div className="form-field-group">
+                      <label className="form-label">Document Name</label>
+                      <input className="form-input-control" value={selectedRecord.name || ''} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Serial Number</label>
+                      <input className="form-input-control" value={selectedRecord.serial_number || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Category</label>
+                      <input className="form-input-control" value={selectedRecord.category || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Date</label>
+                      <input className="form-input-control" value={selectedRecord.date ? new Date(selectedRecord.date).toLocaleDateString() : '—'} readOnly />
+                    </div>
+                    <div className="form-field-group full-width">
+                      <label className="form-label">Description</label>
+                      <textarea className="form-input-control" value={selectedRecord.description || 'No description attached.'} readOnly rows={3} />
+                    </div>
+                  </div>
+                )}
+
+                {currentTab === 'birth' && (
+                  <div className="form-grid">
+                    <div className="form-field-group full-width">
+                      <label className="form-label">Full Name of Child</label>
+                      <input className="form-input-control" value={selectedRecord.name_of_child || ''} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Sex</label>
+                      <input className="form-input-control" value={selectedRecord.sex || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">LCR Number</label>
+                      <input className="form-input-control" value={selectedRecord.lcr_number || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Date of Registration</label>
+                      <input className="form-input-control" value={selectedRecord.date_of_registration ? new Date(selectedRecord.date_of_registration).toLocaleDateString() : '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Date of Birth</label>
+                      <input className="form-input-control" value={selectedRecord.date_of_birth ? new Date(selectedRecord.date_of_birth).toLocaleDateString() : '—'} readOnly />
+                    </div>
+                    <div className="form-field-group full-width">
+                      <label className="form-label">Place of Birth</label>
+                      <input className="form-input-control" value={selectedRecord.place_of_birth || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Type of Birth</label>
+                      <input className="form-input-control" value={selectedRecord.type_of_birth || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Birth Order</label>
+                      <input className="form-input-control" value={selectedRecord.order || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group full-width">
+                      <label className="form-label">Municipality / Province</label>
+                      <input className="form-input-control" value={selectedRecord.municipality_province || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group full-width">
+                      <label className="form-label">Remarks</label>
+                      <textarea className="form-input-control" value={selectedRecord.remarks || 'No remarks recorded.'} readOnly rows={3} />
+                    </div>
+                  </div>
+                )}
+
+                {currentTab === 'death' && (
+                  <div className="form-grid">
+                    <div className="form-field-group full-width">
+                      <label className="form-label">Name of Deceased</label>
+                      <input className="form-input-control" value={selectedRecord.name_of_deceased || ''} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Sex</label>
+                      <input className="form-input-control" value={selectedRecord.sex || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Age at Death</label>
+                      <input className="form-input-control" value={selectedRecord.age_at_death ? `${selectedRecord.age_at_death} yrs` : '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">LCR Number</label>
+                      <input className="form-input-control" value={selectedRecord.lcr_number || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Date of Death</label>
+                      <input className="form-input-control" value={selectedRecord.date_of_death ? new Date(selectedRecord.date_of_death).toLocaleDateString() : '—'} readOnly />
+                    </div>
+                    <div className="form-field-group full-width">
+                      <label className="form-label">Cause of Death</label>
+                      <input className="form-input-control" value={selectedRecord.cause_of_death || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group full-width">
+                      <label className="form-label">Place of Death</label>
+                      <input className="form-input-control" value={selectedRecord.place_of_death || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Civil Status</label>
+                      <input className="form-input-control" value={selectedRecord.civil_status || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Nationality</label>
+                      <input className="form-input-control" value={selectedRecord.nationality || '—'} readOnly />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {detailTab === 'family' && (
+              <div className="form-grid">
+                <div className="form-field-group">
+                  <label className="form-label">Mother's Full Name</label>
+                  <input className="form-input-control" value={selectedRecord.mother_name || '—'} readOnly />
+                </div>
+                {currentTab === 'birth' && (
+                  <>
+                    <div className="form-field-group">
+                      <label className="form-label">Mother's Age</label>
+                      <input className="form-input-control" value={selectedRecord.mother_age ? `${selectedRecord.mother_age} yrs` : '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Mother's Nationality</label>
+                      <input className="form-input-control" value={selectedRecord.mother_nationality || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Mother's Religion</label>
+                      <input className="form-input-control" value={selectedRecord.mother_religion || '—'} readOnly />
+                    </div>
+                  </>
+                )}
+                <div className="form-field-group" style={{ gridColumn: 'span 2', height: '1px', background: 'var(--card-border)', margin: '4px 0' }}></div>
+                <div className="form-field-group">
+                  <label className="form-label">Father's Full Name</label>
+                  <input className="form-input-control" value={selectedRecord.father_name || '—'} readOnly />
+                </div>
+                {currentTab === 'birth' && (
+                  <>
+                    <div className="form-field-group">
+                      <label className="form-label">Father's Age</label>
+                      <input className="form-input-control" value={selectedRecord.father_age ? `${selectedRecord.father_age} yrs` : '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Father's Nationality</label>
+                      <input className="form-input-control" value={selectedRecord.father_nationality || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Father's Religion</label>
+                      <input className="form-input-control" value={selectedRecord.father_religion || '—'} readOnly />
+                    </div>
+                  </>
+                )}
+                {currentTab === 'death' && (
+                  <>
+                    <div className="form-field-group" style={{ gridColumn: 'span 2', height: '1px', background: 'var(--card-border)', margin: '4px 0' }}></div>
+                    <div className="form-field-group">
+                      <label className="form-label">Informant Name</label>
+                      <input className="form-input-control" value={selectedRecord.informant_name || '—'} readOnly />
+                    </div>
+                    <div className="form-field-group">
+                      <label className="form-label">Informant Relationship</label>
+                      <input className="form-input-control" value={selectedRecord.informant_relationship || '—'} readOnly />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {detailTab === 'document' && (
+              <div>
+                {selectedRecord.imageUrl ? (
+                  <div className="detail-doc-preview">
+                    <img src={selectedRecord.imageUrl} alt={selectedRecord.name} />
+                    <button className="doc-overlay-btn" onClick={() => setZoomedImage(selectedRecord.imageUrl)}>
+                      🔍 Expand & Zoom
+                    </button>
+                  </div>
+                ) : (
+                  <div className="state-box">
+                    <div className="state-icon">🖼️</div>
+                    <p>No document scan image attached to this record.</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {/* Tabbed Record Detail Panel */}
-          {selectedRecord && (
-            <div className="detail-panel-card">
-              <div className="detail-panel-header">
-                <div>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--accent-primary)', textTransform: uppercase('Record Inspector') }}>
-                    Record Inspector #{selectedRecord.id}
-                  </span>
-                  <h3>
-                    {currentTab === 'general' ? selectedRecord.name : currentTab === 'birth' ? selectedRecord.name_of_child : selectedRecord.name_of_deceased}
-                  </h3>
-                </div>
-                <button className="close-panel-btn" onClick={() => setSelectedRecord(null)} title="Close Panel">✕</button>
-              </div>
-
-              {/* Tabs for each <div> of information */}
-              <div className="detail-tabs-bar">
-                <button
-                  className={`detail-tab-btn ${detailTab === 'overview' ? 'active' : ''}`}
-                  onClick={() => setDetailTab('overview')}
-                >
-                  Overview
-                </button>
-                {currentTab !== 'general' && (
-                  <button
-                    className={`detail-tab-btn ${detailTab === 'family' ? 'active' : ''}`}
-                    onClick={() => setDetailTab('family')}
-                  >
-                    Family Info
-                  </button>
-                )}
-                {currentTab === 'general' && (
-                  <button
-                    className={`detail-tab-btn ${detailTab === 'document' ? 'active' : ''}`}
-                    onClick={() => setDetailTab('document')}
-                  >
-                    Document Image
-                  </button>
-                )}
-                <button
-                  className={`detail-tab-btn ${detailTab === 'raw' ? 'active' : ''}`}
-                  onClick={() => setDetailTab('raw')}
-                >
-                  Raw Metadata
-                </button>
-              </div>
-
-              {/* Tab 1: Overview Div */}
-              {detailTab === 'overview' && (
-                <div className="detail-tab-content">
-                  {currentTab === 'general' && (
-                    <div className="detail-grid-pairs">
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Document Name</div>
-                        <div className="meta-field-value">{selectedRecord.name}</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Serial Number</div>
-                        <div className="meta-field-value">{selectedRecord.serial_number || '—'}</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Category</div>
-                        <div className="meta-field-value">{selectedRecord.category || '—'}</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Date</div>
-                        <div className="meta-field-value">{selectedRecord.date ? new Date(selectedRecord.date).toLocaleDateString() : '—'}</div>
-                      </div>
-                      <div className="meta-field-box full-width">
-                        <div className="meta-field-label">Description</div>
-                        <div className="meta-field-value">{selectedRecord.description || 'No description attached.'}</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {currentTab === 'birth' && (
-                    <div className="detail-grid-pairs">
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Child Name</div>
-                        <div className="meta-field-value">{selectedRecord.name_of_child}</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Sex</div>
-                        <div className="meta-field-value">{selectedRecord.sex || '—'}</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">LCR Number</div>
-                        <div className="meta-field-value">{selectedRecord.lcr_number || '—'}</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Registration Date</div>
-                        <div className="meta-field-value">{selectedRecord.date_of_registration ? new Date(selectedRecord.date_of_registration).toLocaleDateString() : '—'}</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Date of Birth</div>
-                        <div className="meta-field-value">{selectedRecord.date_of_birth ? new Date(selectedRecord.date_of_birth).toLocaleDateString() : '—'}</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Place of Birth</div>
-                        <div className="meta-field-value">{selectedRecord.place_of_birth || '—'}</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Type / Order</div>
-                        <div className="meta-field-value">{selectedRecord.type_of_birth || 'Single'} ({selectedRecord.order || '1st'})</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Municipality</div>
-                        <div className="meta-field-value">{selectedRecord.municipality_province || '—'}</div>
-                      </div>
-                      <div className="meta-field-box full-width">
-                        <div className="meta-field-label">Remarks</div>
-                        <div className="meta-field-value">{selectedRecord.remarks || 'No remarks recorded.'}</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {currentTab === 'death' && (
-                    <div className="detail-grid-pairs">
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Deceased Name</div>
-                        <div className="meta-field-value">{selectedRecord.name_of_deceased}</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Sex / Age</div>
-                        <div className="meta-field-value">{selectedRecord.sex || '—'} ({selectedRecord.age_at_death ? `${selectedRecord.age_at_death} yrs` : 'N/A'})</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">LCR Number</div>
-                        <div className="meta-field-value">{selectedRecord.lcr_number || '—'}</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Date of Death</div>
-                        <div className="meta-field-value">{selectedRecord.date_of_death ? new Date(selectedRecord.date_of_death).toLocaleDateString() : '—'}</div>
-                      </div>
-                      <div className="meta-field-box full-width">
-                        <div className="meta-field-label">Cause of Death</div>
-                        <div className="meta-field-value">{selectedRecord.cause_of_death || '—'}</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Place of Death</div>
-                        <div className="meta-field-value">{selectedRecord.place_of_death || '—'}</div>
-                      </div>
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Civil Status</div>
-                        <div className="meta-field-value">{selectedRecord.civil_status || '—'}</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Tab 2: Family Info Div */}
-              {detailTab === 'family' && (
-                <div className="detail-tab-content">
-                  <div className="detail-grid-pairs">
-                    <div className="meta-field-box">
-                      <div className="meta-field-label">Mother's Name</div>
-                      <div className="meta-field-value">{selectedRecord.mother_name || '—'}</div>
-                    </div>
-                    {currentTab === 'birth' && (
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Mother's Age / Citizenship</div>
-                        <div className="meta-field-value">{selectedRecord.mother_nationality || '—'} {selectedRecord.mother_age ? `(${selectedRecord.mother_age} yrs)` : ''}</div>
-                      </div>
-                    )}
-                    <div className="meta-field-box">
-                      <div className="meta-field-label">Father's Name</div>
-                      <div className="meta-field-value">{selectedRecord.father_name || '—'}</div>
-                    </div>
-                    {currentTab === 'birth' && (
-                      <div className="meta-field-box">
-                        <div className="meta-field-label">Father's Age / Citizenship</div>
-                        <div className="meta-field-value">{selectedRecord.father_nationality || '—'} {selectedRecord.father_age ? `(${selectedRecord.father_age} yrs)` : ''}</div>
-                      </div>
-                    )}
-                    {currentTab === 'death' && (
-                      <>
-                        <div className="meta-field-box">
-                          <div className="meta-field-label">Informant Name</div>
-                          <div className="meta-field-value">{selectedRecord.informant_name || '—'}</div>
-                        </div>
-                        <div className="meta-field-box">
-                          <div className="meta-field-label">Informant Relationship</div>
-                          <div className="meta-field-value">{selectedRecord.informant_relationship || '—'}</div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 3: Document Image Div */}
-              {detailTab === 'document' && (
-                <div className="detail-tab-content">
-                  {selectedRecord.imageUrl ? (
-                    <div className="detail-doc-preview">
-                      <img src={selectedRecord.imageUrl} alt={selectedRecord.name} />
-                      <button className="doc-overlay-btn" onClick={() => setZoomedImage(selectedRecord.imageUrl)}>
-                        🔍 Expand & Zoom
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="state-box">
-                      <div className="state-icon">🖼️</div>
-                      <p>No document scan image attached to this record.</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Tab 4: Raw Metadata JSON Div */}
-              {detailTab === 'raw' && (
-                <div className="detail-tab-content">
-                  <pre style={{
-                    background: 'rgba(0,0,0,0.4)',
-                    padding: '14px',
-                    borderRadius: '10px',
-                    fontSize: '0.78rem',
-                    fontFamily: 'var(--font-mono)',
-                    color: 'var(--accent-primary)',
-                    overflowX: 'auto'
-                  }}>
-                    {JSON.stringify(selectedRecord, null, 2)}
-                  </pre>
-                </div>
-              )}
+          <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ background: 'linear-gradient(135deg, #eab308, #ca8a04)' }}
+                onClick={() => setEditingRecord(selectedRecord)}
+              >
+                ✏️ Edit Record
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
+                onClick={() => handleDeleteRecord(selectedRecord)}
+              >
+                🗑️ Delete Record
+              </button>
             </div>
-          )}
-        </section>
-      </main>
+            <button type="button" className="btn-secondary" onClick={() => setSelectedRecord(null)}>Close Inspector</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit Record Modal Renderer */}
+      {editingRecord && (
+        <EditRecordModal
+          serverUrl={baseUrl}
+          token={token}
+          record={editingRecord}
+          recordType={currentTab}
+          onSuccess={(msg) => {
+            handleFormSuccess(msg);
+            setSelectedRecord(null);
+          }}
+          onClose={() => setEditingRecord(null)}
+        />
+      )}
 
       {/* Modals Component Renderers */}
       {modalMode === 'birth' && (
