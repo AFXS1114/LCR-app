@@ -411,7 +411,7 @@ app.get('/api/employees', authenticate, async (req, res) => {
   }
 });
 
-// POST /api/employees
+// POST /api/employees (Upsert by name to prevent duplicates)
 app.post('/api/employees', authenticate, async (req, res) => {
   const { name, designation } = req.body;
   if (!name || !designation) {
@@ -419,9 +419,30 @@ app.post('/api/employees', authenticate, async (req, res) => {
   }
 
   try {
+    const trimmedName = String(name).trim();
+    const trimmedDesig = String(designation).trim();
+
+    const existing = await dbClient.execute({
+      sql: 'SELECT * FROM employees WHERE LOWER(name) = LOWER(?)',
+      args: [trimmedName]
+    });
+
+    if (existing.rows && existing.rows.length > 0) {
+      const existingId = existing.rows[0].id;
+      await dbClient.execute({
+        sql: 'UPDATE employees SET name=?, designation=? WHERE id=?',
+        args: [trimmedName, trimmedDesig, existingId]
+      });
+      const updated = (await dbClient.execute({
+        sql: 'SELECT * FROM employees WHERE id = ?',
+        args: [existingId]
+      })).rows[0];
+      return res.json(updated);
+    }
+
     const result = await dbClient.execute({
       sql: 'INSERT INTO employees (name, designation) VALUES (?, ?)',
-      args: [String(name).trim(), String(designation).trim()]
+      args: [trimmedName, trimmedDesig]
     });
 
     const newEmp = (await dbClient.execute({
@@ -430,6 +451,28 @@ app.post('/api/employees', authenticate, async (req, res) => {
     })).rows[0];
 
     res.status(201).json(newEmp);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/employees/:id
+app.put('/api/employees/:id', authenticate, async (req, res) => {
+  const { name, designation } = req.body;
+  if (!name || !designation) {
+    return res.status(400).json({ error: 'Name and designation are required' });
+  }
+
+  try {
+    await dbClient.execute({
+      sql: 'UPDATE employees SET name=?, designation=? WHERE id=?',
+      args: [String(name).trim(), String(designation).trim(), req.params.id]
+    });
+    const updatedEmp = (await dbClient.execute({
+      sql: 'SELECT * FROM employees WHERE id = ?',
+      args: [req.params.id]
+    })).rows[0];
+    res.json(updatedEmp);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -524,7 +567,7 @@ app.get('/api/stats', authenticate, async (req, res) => {
 
 // GET /api/search?query=&limit=
 app.get('/api/search', authenticate, async (req, res) => {
-  const { query = '', limit = 100 } = req.query;
+  const { query = '', limit = 500 } = req.query;
   const q = `%${query}%`;
 
   try {
@@ -678,7 +721,7 @@ app.post('/api/records', authenticate, upload.single('image'), async (req, res) 
 
 // GET /api/birth-records
 app.get('/api/birth-records', authenticate, async (req, res) => {
-  const { query = '', limit = 50, offset = 0 } = req.query;
+  const { query = '', limit = 500, offset = 0 } = req.query;
   let sql = 'SELECT * FROM birth_records WHERE 1=1';
   const params = [];
   
@@ -694,6 +737,22 @@ app.get('/api/birth-records', authenticate, async (req, res) => {
   try {
     const result = await dbClient.execute({ sql, args: params });
     res.json({ records: result.rows, total: result.rows.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/birth-records/:id
+app.get('/api/birth-records/:id', authenticate, async (req, res) => {
+  try {
+    const result = await dbClient.execute({
+      sql: 'SELECT * FROM birth_records WHERE id = ?',
+      args: [req.params.id]
+    });
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({ error: 'Birth record not found' });
+    }
+    res.json({ record: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -801,7 +860,7 @@ app.post('/api/birth-records', authenticate, async (req, res) => {
 
 // GET /api/death-records
 app.get('/api/death-records', authenticate, async (req, res) => {
-  const { query = '', limit = 50, offset = 0 } = req.query;
+  const { query = '', limit = 500, offset = 0 } = req.query;
   let sql = 'SELECT * FROM death_records WHERE 1=1';
   const params = [];
   
@@ -931,14 +990,73 @@ app.get('/api/form1a-records', authenticate, async (req, res) => {
   }
 });
 
-// POST /api/form1a-records
+// POST /api/form1a-records (Upsert: by OR number first, then by birth_record_id)
 app.post('/api/form1a-records', authenticate, async (req, res) => {
   const {
     birth_record_id, requestee, purpose, prn, verified_by,
     mcr_name, amount_paid, or_number, date_paid, generated_date
   } = req.body;
 
+  const updateFields = [
+    requestee || null, purpose || null, prn || null, verified_by || null,
+    mcr_name || null, amount_paid || null, or_number || null,
+    date_paid || null, generated_date || null
+  ];
+
   try {
+    // 1. If OR number is provided, upsert by OR number (globally unique receipt)
+    if (or_number && String(or_number).trim() !== '') {
+      const byOrNum = await dbClient.execute({
+        sql: 'SELECT id FROM form1a_records WHERE LOWER(or_number) = LOWER(?)',
+        args: [String(or_number).trim()]
+      });
+
+      if (byOrNum.rows && byOrNum.rows.length > 0) {
+        const existingId = byOrNum.rows[0].id;
+        await dbClient.execute({
+          sql: `UPDATE form1a_records SET
+                  birth_record_id=?, requestee=?, purpose=?, prn=?, verified_by=?, mcr_name=?,
+                  amount_paid=?, or_number=?, date_paid=?, generated_date=?,
+                  created_at=datetime('now')
+                WHERE id=?`,
+          args: [
+            birth_record_id || null, ...updateFields, existingId
+          ]
+        });
+        const updated = (await dbClient.execute({
+          sql: 'SELECT * FROM form1a_records WHERE id = ?',
+          args: [existingId]
+        })).rows[0];
+        return res.status(200).json({ ...updated, _upserted: 'or_number' });
+      }
+    }
+
+    // 2. Fallback: upsert by birth_record_id (same person re-printed)
+    if (birth_record_id) {
+      const byBirthId = await dbClient.execute({
+        sql: 'SELECT id FROM form1a_records WHERE birth_record_id = ?',
+        args: [birth_record_id]
+      });
+
+      if (byBirthId.rows && byBirthId.rows.length > 0) {
+        const existingId = byBirthId.rows[0].id;
+        await dbClient.execute({
+          sql: `UPDATE form1a_records SET
+                  requestee=?, purpose=?, prn=?, verified_by=?, mcr_name=?,
+                  amount_paid=?, or_number=?, date_paid=?, generated_date=?,
+                  created_at=datetime('now')
+                WHERE id=?`,
+          args: [...updateFields, existingId]
+        });
+        const updated = (await dbClient.execute({
+          sql: 'SELECT * FROM form1a_records WHERE id = ?',
+          args: [existingId]
+        })).rows[0];
+        return res.status(200).json({ ...updated, _upserted: 'birth_record_id' });
+      }
+    }
+
+    // 3. No match — insert new record
     const result = await dbClient.execute({
       sql: `INSERT INTO form1a_records
               (birth_record_id, requestee, purpose, prn, verified_by, mcr_name, amount_paid, or_number, date_paid, generated_date)
@@ -956,6 +1074,29 @@ app.post('/api/form1a-records', authenticate, async (req, res) => {
     })).rows[0];
 
     res.status(201).json(newRecord);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/form1a-records/:id (Delete individual issuance record)
+app.delete('/api/form1a-records/:id', authenticate, async (req, res) => {
+  try {
+    await dbClient.execute({
+      sql: 'DELETE FROM form1a_records WHERE id = ?',
+      args: [req.params.id]
+    });
+    res.json({ success: true, message: 'Form 1A issuance record deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/form1a-records (Empty all issuance records)
+app.delete('/api/form1a-records', authenticate, async (req, res) => {
+  try {
+    await dbClient.execute('DELETE FROM form1a_records');
+    res.json({ success: true, message: 'All Form 1A issuance records cleared' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

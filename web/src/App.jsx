@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const STORAGE_KEYS = {
   server: 'lcr-web-server',
@@ -43,6 +43,19 @@ function toProperCase(str) {
       return word.charAt(0).toUpperCase() + word.slice(1);
     })
     .join(' ');
+}
+
+function deduplicateEmployees(list) {
+  if (!Array.isArray(list)) return [];
+  const map = new Map();
+  for (const emp of list) {
+    if (!emp || !emp.name) continue;
+    const nameKey = emp.name.trim().toUpperCase();
+    if (nameKey) {
+      map.set(nameKey, emp);
+    }
+  }
+  return Array.from(map.values());
 }
 
 // ─── Modal Overlay Wrapper Component ──────────────────────────────────────────
@@ -105,7 +118,7 @@ function EditRecordModal({ serverUrl, token, record, recordType, onSuccess, onCl
     }
   };
 
-  const tabs = recordType === 'birth' 
+  const tabs = recordType === 'birth'
     ? [{ id: 'lcr', label: 'LCR' }, { id: 'child', label: 'Child' }, { id: 'parents', label: 'Parents' }, { id: 'location', label: 'Location' }]
     : null;
 
@@ -121,7 +134,7 @@ function EditRecordModal({ serverUrl, token, record, recordType, onSuccess, onCl
       <form onSubmit={submit} style={{ display: 'contents' }}>
         <div className="modal-body">
           {error && <div className="error-banner">⚠️ {error}</div>}
-          
+
           {recordType === 'birth' && (
             <>
               {activeTab === 'lcr' && (
@@ -138,8 +151,8 @@ function EditRecordModal({ serverUrl, token, record, recordType, onSuccess, onCl
                   <div className="form-field-group"><label className="form-label">Sex</label><select className="form-input-control" name="sex" value={form.sex || ''} onChange={handle}><option value="">— Select —</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
                   <div className="form-field-group"><label className="form-label">Date of Birth</label><input className="form-input-control" type="date" name="date_of_birth" value={form.date_of_birth || ''} onChange={handle} /></div>
                   <div className="form-field-group full-width"><label className="form-label">Place of Birth</label><input className="form-input-control" name="place_of_birth" value={form.place_of_birth || ''} onChange={handle} /></div>
-                  <div className="form-field-group"><label className="form-label">Type of Birth</label><select className="form-input-control" name="type_of_birth" value={form.type_of_birth || ''} onChange={handle}><option value="">— Select —</option>{['Single','Twin','Triplet','Others'].map(o=><option key={o} value={o}>{o}</option>)}</select></div>
-                  <div className="form-field-group"><label className="form-label">Birth Order</label><select className="form-input-control" name="order" value={form.order || ''} onChange={handle}><option value="">— Select —</option>{['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th'].map(o=><option key={o} value={o}>{o}</option>)}</select></div>
+                  <div className="form-field-group"><label className="form-label">Type of Birth</label><select className="form-input-control" name="type_of_birth" value={form.type_of_birth || ''} onChange={handle}><option value="">— Select —</option>{['Single', 'Twin', 'Triplet', 'Others'].map(o => <option key={o} value={o}>{o}</option>)}</select></div>
+                  <div className="form-field-group"><label className="form-label">Birth Order</label><select className="form-input-control" name="order" value={form.order || ''} onChange={handle}><option value="">— Select —</option>{['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'].map(o => <option key={o} value={o}>{o}</option>)}</select></div>
                 </div>
               )}
               {activeTab === 'parents' && (
@@ -645,18 +658,23 @@ function DeathFormModal({ serverUrl, token, onSuccess, onClose }) {
 }
 
 // ─── Generate Form 1A Modal ───────────────────────────────────────────────────
-function Generate1AModal({ serverUrl, token, record, employees, mcr, mcrDesignation, municipality, province, onClose }) {
+function Generate1AModal({ serverUrl, token, record, issuance, employees, mcr, mcrDesignation, municipality, province, onClose }) {
   const today = new Date().toISOString().split('T')[0];
+  const cleanEmployees = deduplicateEmployees(employees);
+  const initialEmp = cleanEmployees && cleanEmployees.length > 0 ? cleanEmployees[0] : null;
+
   const [form, setForm] = useState({
-    date: today,
-    requestee: '',
-    purpose: '',
-    prn: '',
-    verified_by: '',
-    mcr_name: mcr || '',
-    amount_paid: '',
-    or_number: '',
-    date_paid: today,
+    date: issuance?.generated_date || today,
+    requestee: issuance?.requestee || '',
+    purpose: issuance?.purpose || '',
+    prn: issuance?.prn || '',
+    verified_by: issuance?.verified_by ? String(issuance.verified_by) : (initialEmp ? String(initialEmp.id) : ''),
+    verified_by_name: issuance?.verified_by_name || (initialEmp ? initialEmp.name : ''),
+    verified_by_designation: issuance?.verified_by_designation || (initialEmp ? initialEmp.designation : ''),
+    mcr_name: issuance?.mcr_name || mcr || '',
+    amount_paid: issuance?.amount_paid || '175.00',
+    or_number: issuance?.or_number || '',
+    date_paid: issuance?.date_paid || today,
   });
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState('');
@@ -667,10 +685,41 @@ function Generate1AModal({ serverUrl, token, record, employees, mcr, mcrDesignat
     setForm(prev => ({ ...prev, [name]: val }));
   };
 
+  const handleEmployeeChange = e => {
+    const selectedId = e.target.value;
+    const emp = employees.find(emp => String(emp.id) === String(selectedId) || emp.name === selectedId);
+    setForm(prev => ({
+      ...prev,
+      verified_by: selectedId,
+      verified_by_name: emp ? emp.name : selectedId,
+      verified_by_designation: emp ? emp.designation : '',
+    }));
+  };
+
   const getDocData = () => {
-    const verifiedByEmployee = employees.find(emp => emp.id === form.verified_by);
-    const verifiedByName = verifiedByEmployee ? verifiedByEmployee.name : '';
-    const verifiedByDesig = verifiedByEmployee ? toProperCase(verifiedByEmployee.designation) : '';
+    let rawName = '';
+    let verifiedByDesig = '';
+
+    const emp = employees.find(e => String(e.id) === String(form.verified_by) || e.name === form.verified_by);
+    if (emp) {
+      rawName = (emp.name || '').trim();
+      verifiedByDesig = (emp.designation || '').trim();
+    } else if (form.verified_by_name) {
+      rawName = (form.verified_by_name || '').trim();
+      verifiedByDesig = (form.verified_by_designation || '').trim();
+    } else if (form.verified_by) {
+      rawName = String(form.verified_by).trim();
+    }
+
+    let verifiedByName = rawName;
+    if (rawName.includes('—') || rawName.includes(' - ')) {
+      const parts = rawName.split(/—|\s-\s/);
+      verifiedByName = parts[0].trim();
+      if (!verifiedByDesig && parts[1]) {
+        verifiedByDesig = parts[1].trim();
+      }
+    }
+    verifiedByName = verifiedByName.toUpperCase();
 
     const childName = (record?.name_of_child || '').toUpperCase();
     const sex = record?.sex || '';
@@ -730,10 +779,19 @@ function Generate1AModal({ serverUrl, token, record, employees, mcr, mcrDesignat
       created_at: new Date().toISOString(),
     };
 
-    // Always save to localStorage backup
+    // Deduplicate localStorage: remove by OR number first, then by birth_record_id
     try {
       const localSaved = JSON.parse(localStorage.getItem('lcr-form1a-saved-records') || '[]');
-      localStorage.setItem('lcr-form1a-saved-records', JSON.stringify([newEntry, ...localSaved]));
+      let filtered = localSaved;
+      if (form.or_number && form.or_number.trim() !== '') {
+        filtered = filtered.filter(item =>
+          !item.or_number || item.or_number.toLowerCase() !== form.or_number.trim().toLowerCase()
+        );
+      }
+      if (record?.id) {
+        filtered = filtered.filter(item => String(item.birth_record_id) !== String(record.id));
+      }
+      localStorage.setItem('lcr-form1a-saved-records', JSON.stringify([newEntry, ...filtered]));
     } catch { /* ignore storage error */ }
 
     try {
@@ -907,9 +965,9 @@ function Generate1AModal({ serverUrl, token, record, employees, mcr, mcrDesignat
   const handleExportDocx = async () => {
     await saveToDatabase();
     const html = buildHtmlDoc();
-    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' "+
-      "xmlns:w='urn:schemas-microsoft-com:office:word' "+
-      "xmlns='http://www.w3.org/TR/REC-html40'>"+
+    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' " +
+      "xmlns:w='urn:schemas-microsoft-com:office:word' " +
+      "xmlns='http://www.w3.org/TR/REC-html40'>" +
       "<head><meta charset='utf-8'><title>Form 1A</title></head><body>";
     const footer = "</body></html>";
     const sourceHTML = header + html + footer;
@@ -953,17 +1011,25 @@ function Generate1AModal({ serverUrl, token, record, employees, mcr, mcrDesignat
             <input className="form-input-control" name="prn" value={form.prn} onChange={handle} placeholder="PRN (optional)" />
           </div>
           <div className="form-field-group">
-            <label className="form-label">Verified By</label>
-            <select className="form-input-control" name="verified_by" value={form.verified_by} onChange={(e) => setForm(prev => ({ ...prev, verified_by: e.target.value }))}>
-              <option value="">— Select Employee —</option>
-              {employees.map(emp => (
+            <label className="form-label">Verified By (Employee)</label>
+            <select className="form-input-control" name="verified_by" value={form.verified_by} onChange={handleEmployeeChange}>
+              <option value="">— Custom / Select Employee —</option>
+              {cleanEmployees.map(emp => (
                 <option key={emp.id} value={emp.id}>{emp.name} — {emp.designation}</option>
               ))}
             </select>
           </div>
           <div className="form-field-group">
-            <label className="form-label">Municipal Civil Registrar (MCR)</label>
-            <input className="form-input-control" name="mcr_name" value={form.mcr_name} onChange={handle} placeholder="MCR full name" />
+            <label className="form-label" hidden>Verifier Name</label>
+            <input hidden className="form-input-control" name="verified_by_name" value={form.verified_by_name} onChange={handle} placeholder="Full name of verifier" />
+          </div>
+          <div className="form-field-group">
+            <label className="form-label" hidden>Verifier Designation</label>
+            <input hidden className="form-input-control" name="verified_by_designation" value={form.verified_by_designation} onChange={handle} placeholder="e.g. Registration Officer I" />
+          </div>
+          <div className="form-field-group">
+            <label className="form-label" hidden>Municipal Civil Registrar (MCR)</label>
+            <input hidden className="form-input-control" name="mcr_name" value={form.mcr_name} onChange={handle} placeholder="MCR full name" />
           </div>
         </div>
 
@@ -1040,6 +1106,9 @@ export default function App() {
   const [province, setProvince] = useState(() => localStorage.getItem('lcr-province') || '');
   const [newEmpName, setNewEmpName] = useState('');
   const [newEmpDesignation, setNewEmpDesignation] = useState('');
+  const [editingEmpId, setEditingEmpId] = useState(null);
+  const [editEmpName, setEditEmpName] = useState('');
+  const [editEmpDesignation, setEditEmpDesignation] = useState('');
   const [mcrInput, setMcrInput] = useState(() => localStorage.getItem('lcr-mcr') || '');
   const [municipalityInput, setMunicipalityInput] = useState(() => localStorage.getItem('lcr-municipality') || '');
   const [provinceInput, setProvinceInput] = useState(() => localStorage.getItem('lcr-province') || '');
@@ -1068,8 +1137,9 @@ export default function App() {
       if (empRes.ok) {
         const empData = await readJsonResponse(empRes);
         if (Array.isArray(empData.employees)) {
-          setEmployees(empData.employees);
-          localStorage.setItem('lcr-employees', JSON.stringify(empData.employees));
+          const clean = deduplicateEmployees(empData.employees);
+          setEmployees(clean);
+          localStorage.setItem('lcr-employees', JSON.stringify(clean));
         }
       }
     } catch { /* fallback to local */ }
@@ -1084,7 +1154,7 @@ export default function App() {
   const addEmployee = async () => {
     if (!newEmpName.trim()) return;
     const name = newEmpName.trim().toUpperCase();
-    const designation = toProperCase(newEmpDesignation.trim());
+    const designation = newEmpDesignation.trim();
     const baseUrl = serverUrl.trim().replace(/\/$/, '');
 
     try {
@@ -1095,7 +1165,7 @@ export default function App() {
       });
       if (res.ok) {
         const data = await readJsonResponse(res);
-        const updated = [...employees, data];
+        const updated = deduplicateEmployees([...employees, data]);
         setEmployees(updated);
         localStorage.setItem('lcr-employees', JSON.stringify(updated));
       } else {
@@ -1104,7 +1174,7 @@ export default function App() {
     } catch {
       // Fallback local save
       const newEmp = { id: Date.now().toString(), name, designation };
-      const updated = [...employees, newEmp];
+      const updated = deduplicateEmployees([...employees, newEmp]);
       setEmployees(updated);
       localStorage.setItem('lcr-employees', JSON.stringify(updated));
     }
@@ -1124,6 +1194,48 @@ export default function App() {
     const updated = employees.filter(e => String(e.id) !== String(id));
     setEmployees(updated);
     localStorage.setItem('lcr-employees', JSON.stringify(updated));
+  };
+
+  const startEditEmployee = (emp) => {
+    setEditingEmpId(emp.id);
+    setEditEmpName(emp.name || '');
+    setEditEmpDesignation(emp.designation || '');
+  };
+
+  const cancelEditEmployee = () => {
+    setEditingEmpId(null);
+    setEditEmpName('');
+    setEditEmpDesignation('');
+  };
+
+  const updateEmployee = async (id) => {
+    if (!editEmpName.trim()) return;
+    const name = editEmpName.trim().toUpperCase();
+    const designation = editEmpDesignation.trim();
+    const baseUrl = serverUrl.trim().replace(/\/$/, '');
+
+    try {
+      const res = await fetch(`${baseUrl}/api/employees/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name, designation }),
+      });
+      if (res.ok) {
+        const data = await readJsonResponse(res);
+        const updated = employees.map(e => String(e.id) === String(id) ? data : e);
+        setEmployees(updated);
+        localStorage.setItem('lcr-employees', JSON.stringify(updated));
+      } else {
+        throw new Error('API update failed');
+      }
+    } catch {
+      // Fallback local update
+      const updated = employees.map(e => String(e.id) === String(id) ? { ...e, name, designation } : e);
+      setEmployees(updated);
+      localStorage.setItem('lcr-employees', JSON.stringify(updated));
+    }
+
+    cancelEditEmployee();
   };
 
   const saveMcr = async () => {
@@ -1154,6 +1266,33 @@ export default function App() {
   // ─── Form 1A Modal State ─────────────────────────────────────────────────────
   const [show1AModal, setShow1AModal] = useState(false);
   const [form1ARecord, setForm1ARecord] = useState(null);
+  const [form1AIssuance, setForm1AIssuance] = useState(null);
+  const [rePrintLoading, setRePrintLoading] = useState(false);
+
+  const handleRePrint = async (f1a) => {
+    setRePrintLoading(true);
+    let fullRecord = null;
+    try {
+      const base = serverUrl.trim().replace(/\/$/, '');
+      const res = await fetch(`${base}/api/birth-records/${f1a.birth_record_id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await readJsonResponse(res);
+        fullRecord = data.record || data;
+      }
+    } catch { /* ignore, fallback to partial */ }
+
+    setForm1ARecord(fullRecord || {
+      id: f1a.birth_record_id,
+      name_of_child: f1a.name_of_child,
+      lcr_number: f1a.record_lcr_number,
+    });
+    setForm1AIssuance(f1a);
+    setShow1AModal(true);
+    setRePrintLoading(false);
+  };
+
 
   // Active View: 'search' | 'issuance' | 'settings'
   const [activePage, setActivePage] = useState('search');
@@ -1225,11 +1364,12 @@ export default function App() {
     try {
       const params = new URLSearchParams();
       if (queryText) params.set('query', queryText);
-      params.set('limit', '50');
+      params.set('limit', '500');
 
-      let endpoint = 'records';
+      let endpoint;
       if (tab === 'birth') endpoint = 'birth-records';
-      if (tab === 'death') endpoint = 'death-records';
+      else if (tab === 'death') endpoint = 'death-records';
+      else endpoint = 'search'; // general tab uses unified search (birth + death)
 
       const response = await fetch(`${baseUrl}/api/${endpoint}?${params.toString()}`, {
         headers: { Authorization: `Bearer ${authToken}` },
@@ -1290,6 +1430,48 @@ export default function App() {
     }
   }, [token, serverUrl]);
 
+  const deleteForm1ARecord = async (id, birthRecordId) => {
+    if (!window.confirm('Are you sure you want to delete this issuance record?')) return;
+    try {
+      const baseUrl = serverUrl.trim().replace(/\/$/, '');
+      await fetch(`${baseUrl}/api/form1a-records/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch { /* ignore */ }
+
+    try {
+      const localList = JSON.parse(localStorage.getItem('lcr-form1a-saved-records') || '[]');
+      const filtered = localList.filter(r => r.id !== id && (birthRecordId ? String(r.birth_record_id) !== String(birthRecordId) : true));
+      localStorage.setItem('lcr-form1a-saved-records', JSON.stringify(filtered));
+    } catch { /* ignore */ }
+
+    setSavedForm1As(prev => prev.filter(r => r.id !== id && (birthRecordId ? String(r.birth_record_id) !== String(birthRecordId) : true)));
+    setToastMessage('Issuance record deleted!');
+    setTimeout(() => setToastMessage(''), 3000);
+  };
+
+  const clearAllForm1ARecords = async () => {
+    if (!window.confirm('Are you sure you want to empty/clear ALL Form 1A issuance records? This action cannot be undone.')) {
+      return;
+    }
+    try {
+      const baseUrl = serverUrl.trim().replace(/\/$/, '');
+      await fetch(`${baseUrl}/api/form1a-records`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch { /* ignore */ }
+
+    try {
+      localStorage.removeItem('lcr-form1a-saved-records');
+    } catch { /* ignore */ }
+
+    setSavedForm1As([]);
+    setToastMessage('All Form 1A issuance records cleared successfully!');
+    setTimeout(() => setToastMessage(''), 4000);
+  };
+
   useEffect(() => {
     if (token && (activePage === 'issuance' || (activePage === 'settings' && isPasscodeUnlocked))) {
       fetchSavedForm1As();
@@ -1316,7 +1498,7 @@ export default function App() {
       });
       const data = await readJsonResponse(response);
       if (!response.ok) throw new Error(data.error || `Login failed (${response.status})`);
-      
+
       localStorage.setItem(STORAGE_KEYS.server, baseUrl);
       localStorage.setItem(STORAGE_KEYS.token, data.token);
       setToken(data.token);
@@ -1521,11 +1703,11 @@ export default function App() {
           >
             <span>🔍</span> Search Records
           </button>
-          <button
+          <button disabled
             className={`nav-link ${activePage === 'issuance' ? 'active' : ''}`}
             onClick={() => setActivePage('issuance')}
           >
-            <span>📋</span> 1A Issuance Log
+            <span >📋</span> 1A Issuance Log
           </button>
           <button
             className={`nav-link ${activePage === 'settings' ? 'active' : ''}`}
@@ -1542,7 +1724,7 @@ export default function App() {
           <button className="btn-add btn-add-death" onClick={() => setModalMode('death')}>
             <span>🕊️</span> Add Death Record
           </button>
-          
+
           <button
             className="theme-toggle-btn"
             onClick={toggleTheme}
@@ -1583,8 +1765,8 @@ export default function App() {
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder={
                       currentTab === 'general' ? 'Search by full name, serial number, tag, or category...' :
-                      currentTab === 'birth' ? 'Search child name, LCR #, place of birth, or mother/father name...' :
-                      'Search deceased name, LCR #, cause of death, or place of death...'
+                        currentTab === 'birth' ? 'Search child name, LCR #, place of birth, or mother/father name...' :
+                          'Search deceased name, LCR #, cause of death, or place of death...'
                     }
                   />
                 </div>
@@ -1771,8 +1953,19 @@ export default function App() {
 
             <section className="records-container-card" style={{ minHeight: '450px' }}>
               <div className="records-card-header">
-                <h3>📜 Recent 1A Form Issuance Records</h3>
-                <span className="results-count-badge">{savedForm1As.length} Records</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <h3>📜 Recent 1A Form Issuance Records</h3>
+                  <span className="results-count-badge">{savedForm1As.length} Records</span>
+                </div>
+                {savedForm1As.length > 0 && (
+                  <button
+                    className="btn-secondary"
+                    style={{ padding: '6px 14px', fontSize: '0.82rem', color: '#f43f5e', borderColor: 'rgba(244,63,94,0.3)' }}
+                    onClick={clearAllForm1ARecords}
+                  >
+                    🗑️ Empty Issuance History
+                  </button>
+                )}
               </div>
 
               {savedForm1As.length === 0 ? (
@@ -1807,20 +2000,22 @@ export default function App() {
                           <td style={{ fontWeight: 700, color: '#34d399' }}>₱{parseFloat(f1a.amount_paid || 0).toFixed(2)}</td>
                           <td>{f1a.generated_date || (f1a.created_at ? new Date(f1a.created_at).toLocaleDateString() : '—')}</td>
                           <td>
-                            <button
-                              className="btn-secondary"
-                              style={{ padding: '4px 12px', fontSize: '0.8rem', height: '32px' }}
-                              onClick={() => {
-                                setForm1ARecord({
-                                  id: f1a.birth_record_id,
-                                  name_of_child: f1a.name_of_child,
-                                  lcr_number: f1a.record_lcr_number,
-                                });
-                                setShow1AModal(true);
-                              }}
-                            >
-                              🖨️ Re-Print / Export
-                            </button>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                className="btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '0.8rem', height: '32px' }}
+                                onClick={() => handleRePrint(f1a)}
+                              >
+                                {rePrintLoading ? '⏳ Loading…' : '🖨️ Re-Print'}
+                              </button>
+                              <button
+                                className="btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '0.8rem', height: '32px', color: '#f43f5e', borderColor: 'rgba(244,63,94,0.3)' }}
+                                onClick={() => deleteForm1ARecord(f1a.id, f1a.birth_record_id)}
+                              >
+                                🗑️ Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -2023,18 +2218,60 @@ export default function App() {
                     ) : (
                       <div style={{ display: 'grid', gap: '8px' }}>
                         {employees.map(emp => (
-                          <div key={emp.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '10px' }}>
-                            <div>
-                              <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>{emp.name}</div>
-                              <div style={{ fontSize: '0.8rem', color: 'var(--text-subtle)' }}>{emp.designation}</div>
-                            </div>
-                            <button
-                              className="btn-secondary"
-                              style={{ padding: '4px 10px', fontSize: '0.8rem', color: '#f43f5e', borderColor: 'rgba(244,63,94,0.3)' }}
-                              onClick={() => removeEmployee(emp.id)}
-                            >
-                              🗑️ Remove
-                            </button>
+                          <div key={emp.id} style={{ padding: '10px 14px', background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '10px' }}>
+                            {editingEmpId === emp.id ? (
+                              <div style={{ display: 'grid', gap: '8px' }}>
+                                <div className="form-grid">
+                                  <div className="form-field-group">
+                                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Name</label>
+                                    <input
+                                      className="form-input-control"
+                                      value={editEmpName}
+                                      onChange={(e) => setEditEmpName(e.target.value.toUpperCase())}
+                                    />
+                                  </div>
+                                  <div className="form-field-group">
+                                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Designation</label>
+                                    <input
+                                      className="form-input-control"
+                                      value={editEmpDesignation}
+                                      onChange={(e) => setEditEmpDesignation(e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                  <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={cancelEditEmployee}>
+                                    Cancel
+                                  </button>
+                                  <button className="btn-primary" style={{ padding: '4px 12px', fontSize: '0.8rem' }} onClick={() => updateEmployee(emp.id)}>
+                                    💾 Save
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div>
+                                  <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>{emp.name}</div>
+                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-subtle)' }}>{emp.designation}</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button
+                                    className="btn-secondary"
+                                    style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                                    onClick={() => startEditEmployee(emp)}
+                                  >
+                                    ✏️ Edit
+                                  </button>
+                                  <button
+                                    className="btn-secondary"
+                                    style={{ padding: '4px 10px', fontSize: '0.8rem', color: '#f43f5e', borderColor: 'rgba(244,63,94,0.3)' }}
+                                    onClick={() => removeEmployee(emp.id)}
+                                  >
+                                    🗑️ Remove
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -2046,9 +2283,20 @@ export default function App() {
                 <div className="records-container-card">
                   <div className="records-card-header">
                     <h3>📋 Saved Form 1A Certifications Archive</h3>
-                    <button className="btn-secondary" style={{ padding: '4px 12px', fontSize: '0.8rem' }} onClick={fetchSavedForm1As}>
-                      🔄 Refresh
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button className="btn-secondary" style={{ padding: '4px 12px', fontSize: '0.8rem' }} onClick={fetchSavedForm1As}>
+                        🔄 Refresh
+                      </button>
+                      {savedForm1As.length > 0 && (
+                        <button
+                          className="btn-secondary"
+                          style={{ padding: '4px 12px', fontSize: '0.8rem', color: '#f43f5e', borderColor: 'rgba(244,63,94,0.3)' }}
+                          onClick={clearAllForm1ARecords}
+                        >
+                          🗑️ Empty Archive
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {savedForm1As.length === 0 ? (
                     <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-subtle)', fontSize: '0.88rem' }}>
@@ -2065,6 +2313,7 @@ export default function App() {
                             <th>O.R. Number</th>
                             <th>Amount</th>
                             <th>Date Generated</th>
+                            <th>Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2076,6 +2325,15 @@ export default function App() {
                               <td><code>{f1a.or_number || '—'}</code></td>
                               <td>₱{f1a.amount_paid || '0.00'}</td>
                               <td>{f1a.generated_date || (f1a.created_at ? new Date(f1a.created_at).toLocaleDateString() : '—')}</td>
+                              <td>
+                                <button
+                                  className="btn-secondary"
+                                  style={{ padding: '2px 8px', fontSize: '0.78rem', color: '#f43f5e', borderColor: 'rgba(244,63,94,0.3)' }}
+                                  onClick={() => deleteForm1ARecord(f1a.id, f1a.birth_record_id)}
+                                >
+                                  🗑️ Delete
+                                </button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -2387,11 +2645,12 @@ export default function App() {
           serverUrl={baseUrl}
           token={token}
           record={form1ARecord}
+          issuance={form1AIssuance}
           employees={employees}
           mcr={mcr}
           municipality={municipality}
           province={province}
-          onClose={() => setShow1AModal(false)}
+          onClose={() => { setShow1AModal(false); setForm1AIssuance(null); }}
         />
       )}
 
